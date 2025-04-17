@@ -98,8 +98,7 @@ func main() {
 		For(&corev1.ConfigMap{}).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
-				log := ctrllog.FromContext(ctx).WithValues("cluster", req.ClusterName)
-				log.Info("Reconciling ConfigMap")
+				log := ctrllog.FromContext(ctx, "cluster", req.ClusterName)
 
 				cl, err := mcMgr.GetCluster(ctx, req.ClusterName)
 				if err != nil {
@@ -114,8 +113,7 @@ func main() {
 					return reconcile.Result{}, err
 				}
 
-				log.Info("ConfigMap %s/%s in cluster %q", cm.Namespace, cm.Name, req.ClusterName)
-
+				log.Info("Reconciling ConfigMap", "configMap", client.ObjectKeyFromObject(cm))
 				return ctrl.Result{}, nil
 			},
 		)); err != nil {

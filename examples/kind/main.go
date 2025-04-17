@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,8 +57,7 @@ func main() {
 		For(&corev1.ConfigMap{}).
 		Complete(mcreconcile.Func(
 			func(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
-				log := ctrllog.FromContext(ctx).WithValues("cluster", req.ClusterName)
-				log.Info("Reconciling ConfigMap")
+				log := ctrllog.FromContext(ctx, "cluster", req.ClusterName)
 
 				cl, err := mgr.GetCluster(ctx, req.ClusterName)
 				if err != nil {
@@ -72,8 +72,7 @@ func main() {
 					return reconcile.Result{}, err
 				}
 
-				log.Info("ConfigMap %s/%s in cluster %q", cm.Namespace, cm.Name, req.ClusterName)
-
+				log.Info("Reconciling ConfigMap", "configMap", client.ObjectKeyFromObject(cm))
 				return ctrl.Result{}, nil
 			},
 		))
