@@ -16,7 +16,7 @@ multicluster-runtime is a Go library to write Kubernetes controllers that reconc
 
 - **dynamic fleet orchestration**: So-called providers interact with multi-cluster solutions like Cluster API and dynamically start and stop reconciliation against clusters discovered through the provider.
 - **no fork, no go mod replace**: clean extension to [upstream controller-runtime](https://github.com/kubernetes-sigs/controller-runtime).
-- **universal**: kind, [cluster-api](https://github.com/kubernetes-sigs/cluster-api), [Gardener](https://gardener.cloud/) (tbd), kcp (WIP), BYO. Cluster providers make the controller-runtime multi-cluster aware.
+- **universal**: kind, [cluster-api](https://github.com/kubernetes-sigs/cluster-api), [Gardener](https://gardener.cloud/), kcp (WIP), BYO. Cluster providers make the controller-runtime multi-cluster aware.
 - **seamless**: add multi-cluster support without compromising on single-cluster. Run in either mode without code changes to the reconcilers.
 
 ## Patterns Possible with multicluster-runtime
