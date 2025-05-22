@@ -85,7 +85,7 @@ func NewUnmanaged(name string, mgr mcmanager.Manager, options Options) (Controll
 //
 // The name must be unique as it is used to identify the controller in metrics and logs.
 func NewTypedUnmanaged[request mcreconcile.ClusterAware[request]](name string, mgr mcmanager.Manager, options controller.TypedOptions[request]) (TypedController[request], error) {
-	c, err := controller.NewTypedUnmanaged[request](name, mgr.GetLocalManager(), options)
+	c, err := controller.NewTypedUnmanaged[request](name, options)
 	if err != nil {
 		return nil, err
 	}
