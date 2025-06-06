@@ -62,4 +62,4 @@ done
 echo ""
 echo "Tags have been successfully created on the release commit."
 echo "As a next step, open a PR for your branch in kubernetes-sigs/multicluster-runtime."
-echo "Once the PR has been merged, push all git tags created above.
+echo "Once the PR has been merged, push all git tags created above."
