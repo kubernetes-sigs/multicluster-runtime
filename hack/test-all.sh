@@ -25,7 +25,9 @@ if [[ -n ${ARTIFACTS:-} ]]; then
 fi
 
 result=0
-go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} || result=$?
+go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} \
+  && ( cd providers/cluster-inventory-api; go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} ) \
+  || result=$?
 
 if [[ -n ${ARTIFACTS:-} ]]; then
   mkdir -p ${ARTIFACTS}
