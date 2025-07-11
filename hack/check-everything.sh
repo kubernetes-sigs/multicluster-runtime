@@ -47,6 +47,7 @@ header_text "confirming examples compile (via go install)"
 pushd examples/kind; go install ${MOD_OPT} .; popd
 pushd examples/namespace; go install ${MOD_OPT} .; popd
 pushd examples/cluster-api; go install ${MOD_OPT} .; popd
+pushd examples/cluster-inventory-api; go install ${MOD_OPT} .; popd
 
 echo "passed"
 exit 0
