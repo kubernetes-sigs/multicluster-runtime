@@ -1,0 +1,14 @@
+{
+  "providers": [
+    {
+      "name": "google",
+      "execConfig": {
+        "apiVersion": "client.authentication.k8s.io/v1beta1",
+        "args": null,
+        "command": "gke-gcloud-auth-plugin",
+        "env": null,
+        "provideClusterInfo": true
+      }
+    }
+  ]
+}
