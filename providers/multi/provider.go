@@ -90,8 +90,8 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 // The startFunc is called to start the provider - starting the provider
 // outside of startFunc is an error and will result in undefined
 // behaviour.
-// startFunc should not block.
-// If startFunc returns an error the provider is not added and the error
+// startFunc should block for as long as the provider is running,
+// If startFunc returns an error the provider is removed and the error
 // is returned.
 func (p *Provider) AddProvider(ctx context.Context, prefix string, provider multicluster.Provider, startFunc func(context.Context, mctrl.Manager) error) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -113,15 +113,19 @@ func (p *Provider) AddProvider(ctx context.Context, prefix string, provider mult
 			sep:     p.opts.Separator,
 		}
 	}
-	if err := startFunc(ctx, wrappedMgr); err != nil {
-		cancel()
-		return fmt.Errorf("failed to start provider %q: %w", prefix, err)
-	}
 
 	p.providerLock.Lock()
 	p.providers[prefix] = provider
 	p.providerCancel[prefix] = cancel
 	p.providerLock.Unlock()
+
+	go func() {
+		defer p.RemoveProvider(prefix)
+		if err := startFunc(ctx, wrappedMgr); err != nil {
+			cancel()
+			p.log.Error(err, "error in provider", "prefix", prefix)
+		}
+	}()
 
 	return nil
 }
