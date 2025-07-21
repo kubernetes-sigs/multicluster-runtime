@@ -53,7 +53,7 @@ type Provider struct {
 }
 
 // New returns a new instance of the provider with the given options.
-func New(mgr mctrl.Manager, opts Options) *Provider {
+func New(opts Options) *Provider {
 	p := new(Provider)
 
 	p.opts = opts
@@ -62,12 +62,19 @@ func New(mgr mctrl.Manager, opts Options) *Provider {
 	}
 
 	p.log = log.Log.WithName("namespaced-cluster-provider")
-	p.mgr = mgr
 
 	p.providers = make(map[string]multicluster.Provider)
 	p.providerCancel = make(map[string]context.CancelFunc)
 
 	return p
+}
+
+// SetManager sets the manager for the provider.
+func (p *Provider) SetManager(mgr mctrl.Manager) {
+	if p.mgr != nil {
+		p.log.Error(nil, "manager already set, overwriting")
+	}
+	p.mgr = mgr
 }
 
 // Run starts the provider and blocks until the context is done. This is a noop.
@@ -95,12 +102,16 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 func (p *Provider) AddProvider(ctx context.Context, prefix string, provider multicluster.Provider, startFunc func(context.Context, mctrl.Manager) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	wrappedMgr := &wrappedManager{
-		Manager: p.mgr,
-		prefix:  prefix,
-		sep:     p.opts.Separator,
+	var wrappedMgr mctrl.Manager
+	if p.mgr == nil {
+		p.log.Info("manager is nil, wrapped manager passed to start will be nil as well", "prefix", prefix)
+	} else {
+		wrappedMgr = &wrappedManager{
+			Manager: p.mgr,
+			prefix:  prefix,
+			sep:     p.opts.Separator,
+		}
 	}
-
 	if err := startFunc(ctx, wrappedMgr); err != nil {
 		cancel()
 		return fmt.Errorf("failed to start provider %q: %w", prefix, err)
