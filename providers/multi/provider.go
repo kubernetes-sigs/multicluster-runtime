@@ -96,6 +96,13 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 func (p *Provider) AddProvider(ctx context.Context, prefix string, provider multicluster.Provider, startFunc func(context.Context, mctrl.Manager) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 
+	p.providerLock.Lock()
+	_, ok := p.providers[prefix]
+	p.providerLock.Unlock()
+	if ok {
+		return fmt.Errorf("provider already exists for prefix %q", prefix)
+	}
+
 	var wrappedMgr mctrl.Manager
 	if p.mgr == nil {
 		p.log.Info("manager is nil, wrapped manager passed to start will be nil as well", "prefix", prefix)
