@@ -100,6 +100,7 @@ func (p *Provider) AddProvider(ctx context.Context, prefix string, provider mult
 	_, ok := p.providers[prefix]
 	p.providerLock.Unlock()
 	if ok {
+		cancel()
 		return fmt.Errorf("provider already exists for prefix %q", prefix)
 	}
 
