@@ -77,12 +77,6 @@ func (p *Provider) SetManager(mgr mctrl.Manager) {
 	p.mgr = mgr
 }
 
-// Run starts the provider and blocks until the context is done. This is a noop.
-func (p *Provider) Run(ctx context.Context, mgr mctrl.Manager) error {
-	<-ctx.Done()
-	return nil
-}
-
 func (p *Provider) splitClusterName(clusterName string) (string, string) {
 	parts := strings.SplitN(clusterName, p.opts.Separator, 2)
 	if len(parts) < 2 {
