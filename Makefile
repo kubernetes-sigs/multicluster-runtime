@@ -56,6 +56,8 @@ EXAMPLES_KIND_DIR := $(abspath examples/kind)
 PROVIDERS_KIND_DIR := $(abspath providers/kind)
 EXAMPLES_CLUSTER_API_DIR := $(abspath examples/cluster-api)
 PROVIDERS_CLUSTER_API_DIR := $(abspath providers/cluster-api)
+EXAMPLES_CLUSTER_INVENTORY_API_DIR := $(abspath examples/cluster-inventory-api)
+PROVIDERS_CLUSTER_INVENTORY_API_DIR := $(abspath providers/cluster-inventory-api)
 GO_INSTALL := ./hack/go-install.sh
 
 # The help will print out all targets with their descriptions organized bellow their categories. The categories are represented by `##@` and the target descriptions by `##`.
@@ -140,6 +142,8 @@ modules: ## Runs go mod to ensure modules are up to date.
 	cd $(PROVIDERS_KIND_DIR); go mod tidy
 	cd $(EXAMPLES_CLUSTER_API_DIR); go mod tidy
 	cd $(PROVIDERS_CLUSTER_API_DIR); go mod tidy
+	cd $(EXAMPLES_CLUSTER_INVENTORY_API_DIR); go mod tidy
+	cd $(PROVIDERS_CLUSTER_INVENTORY_API_DIR); go mod tidy
 
 ## --------------------------------------
 ## Cleanup / Verification
@@ -165,6 +169,8 @@ verify-modules: modules $(GO_MOD_CHECK) ## Verify go modules are up to date
 		$(PROVIDERS_KIND_DIR)/go.mod $(PROVIDERS_KIND_DIR)/go.sum \
 		$(EXAMPLES_CLUSTER_API_DIR)/go.mod $(EXAMPLES_CLUSTER_API_DIR)/go.sum \
 		$(PROVIDERS_CLUSTER_API_DIR)/go.mod $(PROVIDERS_CLUSTER_API_DIR)/go.sum \
+		$(EXAMPLES_CLUSTER_INVENTORY_API_DIR)/go.mod $(EXAMPLES_CLUSTER_INVENTORY_API_DIR)/go.sum \
+		$(PROVIDERS_CLUSTER_INVENTORY_API_DIR)/go.mod $(PROVIDERS_CLUSTER_INVENTORY_API_DIR)/go.sum \
 	); then \
 		git diff; \
 		echo "go module files are out of date, please run 'make modules'"; exit 1; \
