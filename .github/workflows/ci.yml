@@ -25,6 +25,8 @@ jobs:
           - providers/kind
           - examples/cluster-api
           - providers/cluster-api
+          - examples/cluster-inventory-api
+          - providers/cluster-inventory-api
     name: golangci-lint [${{ matrix.working-directory }}]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # tag=v4.2.2
