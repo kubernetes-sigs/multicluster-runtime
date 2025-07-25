@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -50,10 +52,6 @@ import (
 	mccontroller "sigs.k8s.io/multicluster-runtime/pkg/controller"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
-
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
-
 	"sigs.k8s.io/multicluster-runtime/providers/cluster-inventory-api/kubeconfigstrategy"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -323,8 +321,8 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 				})
 				Expect(cliHub.Status().Update(ctx, profileMember)).To(Succeed())
 
-				_, sa1TokenMember = mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
-				_ = mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
+				sa1TokenMember = mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
+				mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
 					ctx, cliHub, cfgMember,
 					consumerName,
 					*profileMember,
@@ -340,8 +338,8 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 
 		It("re-engages the cluster when kubeconfig of the cluster profile changes", func(ctx context.Context) {
 			By("Update the kubeconfig for the member ClusterProfile", func() {
-				_, sa2TokenMember = mustCreateAdminSAAndToken(ctx, cliMember, "sa2", "default")
-				_ = mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
+				sa2TokenMember = mustCreateAdminSAAndToken(ctx, cliMember, "sa2", "default")
+				mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
 					ctx, cliHub, cfgMember,
 					consumerName,
 					*profileMember,
@@ -391,7 +389,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 			createClusters()
 
 			By("Setting up the Provider", func() {
-				_, sa1TokenMember := mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
+				sa1TokenMember := mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
 				execPluginOutput := fmt.Sprintf(`{
 					"apiVersion": "client.authentication.k8s.io/v1beta1",
 					"kind": "ExecCredential",
@@ -482,7 +480,7 @@ func ignoreCanceled(err error) error {
 	return err
 }
 
-func mustCreateAdminSAAndToken(ctx context.Context, cli client.Client, name, namespace string) (corev1.ServiceAccount, string) {
+func mustCreateAdminSAAndToken(ctx context.Context, cli client.Client, name, namespace string) string {
 	sa := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -518,7 +516,7 @@ func mustCreateAdminSAAndToken(ctx context.Context, cli client.Client, name, nam
 	}
 	Expect(client.IgnoreAlreadyExists(cli.Create(ctx, &adminClusterRoleBinding))).To(Succeed())
 
-	return sa, tokenRequest.Status.Token
+	return tokenRequest.Status.Token
 }
 
 func mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
@@ -528,7 +526,7 @@ func mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
 	consumerName string,
 	clusterProfile clusterinventoryv1alpha1.ClusterProfile,
 	token string,
-) corev1.Secret {
+) {
 	kubeconfigStr := fmt.Sprintf(`apiVersion: v1
 clusters:
 - cluster:
@@ -568,5 +566,4 @@ users:
 		return nil
 	})
 	Expect(err).NotTo(HaveOccurred())
-	return *kubeConfigSecret
 }

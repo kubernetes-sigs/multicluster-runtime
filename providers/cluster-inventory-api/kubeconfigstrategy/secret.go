@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
@@ -15,14 +17,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 )
 
 const (
+	// SecretLabelKeyClusterInventoryConsumer is the label key used to identify the consumer of the kubeconfig Secret.
 	SecretLabelKeyClusterInventoryConsumer = "x-k8s.io/cluster-inventory-consumer"
-	SecretLabelKeyClusterProfile           = "x-k8s.io/cluster-profile"
-	SecretDataKeyKubeConfig                = "Config" // data key in the Secret that contains the kubeconfig.
+	// SecretLabelKeyClusterProfile is the label key used to identify the ClusterProfile associated with the kubeconfig Secret.
+	SecretLabelKeyClusterProfile = "x-k8s.io/cluster-profile"
+	// SecretDataKeyKubeConfig is the key in the Secret data that contains the kubeconfig.
+	SecretDataKeyKubeConfig = "Config"
 )
 
 var _ Interface = &secretStrategy{}
@@ -31,6 +34,7 @@ type secretStrategy struct {
 	consumerName string
 }
 
+// SecretStrategyOption holds options for the Secret strategy.
 type SecretStrategyOption struct {
 	ConsumerName string
 }

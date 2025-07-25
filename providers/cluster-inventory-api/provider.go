@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -39,9 +40,6 @@ import (
 
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
-
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-
 	"sigs.k8s.io/multicluster-runtime/providers/cluster-inventory-api/kubeconfigstrategy"
 )
 
@@ -82,7 +80,7 @@ type Provider struct {
 	indexers   []index
 }
 
-func setDefaults(opts *Options, cli client.Client) {
+func setDefaults(opts *Options) {
 	if opts.NewCluster == nil {
 		opts.NewCluster = func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error) {
 			return cluster.New(cfg, opts...)
@@ -107,7 +105,7 @@ func New(opts Options) (*Provider, error) {
 		kubeconfig: map[string]*rest.Config{},
 		strategy:   strategy,
 	}
-	setDefaults(&p.opts, p.client)
+	setDefaults(&p.opts)
 	return p, nil
 }
 

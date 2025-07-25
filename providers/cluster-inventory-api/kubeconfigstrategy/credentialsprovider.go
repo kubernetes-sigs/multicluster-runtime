@@ -3,13 +3,13 @@ package kubeconfigstrategy
 import (
 	"context"
 
+	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
+
 	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
 )
 
 var _ Interface = &credentialsProviderStrategy{}

@@ -3,9 +3,9 @@ package kubeconfigstrategy
 import (
 	"context"
 
-	"k8s.io/client-go/rest"
-
 	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+
+	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
