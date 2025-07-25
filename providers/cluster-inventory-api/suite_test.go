@@ -25,9 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -43,11 +41,7 @@ func TestBuilder(t *testing.T) {
 	RunSpecs(t, "Cluster Inventory API Provider Suite")
 }
 
-var testenvHub *envtest.Environment
-var cfgHub *rest.Config
-
-var testenvMember *envtest.Environment
-var cfgMember *rest.Config
+var clusterProfileCRDPath string
 
 var _ = BeforeSuite(func() {
 	runtime.Must(clusterinventoryv1alpha1.AddToScheme(scheme.Scheme))
@@ -56,36 +50,17 @@ var _ = BeforeSuite(func() {
 
 	assetDir := GinkgoT().TempDir()
 
-	clusterProfileCRDPath := filepath.Join(assetDir, "multicluster.x-k8s.io_clusterprofiles.yaml")
+	clusterProfileCRDPath = filepath.Join(assetDir, "multicluster.x-k8s.io_clusterprofiles.yaml")
 	Expect(DownloadFile(
 		clusterProfileCRDPath,
 		"https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/refs/heads/main/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml",
 	)).NotTo(HaveOccurred())
-
-	testenvHub = &envtest.Environment{
-		ErrorIfCRDPathMissing: true,
-		CRDDirectoryPaths:     []string{clusterProfileCRDPath},
-	}
-	testenvMember = &envtest.Environment{}
-
-	var err error
-	cfgHub, err = testenvHub.Start()
-	Expect(err).NotTo(HaveOccurred())
-	cfgMember, err = testenvMember.Start()
-	Expect(err).NotTo(HaveOccurred())
 
 	// Prevent the metrics listener being created
 	metricsserver.DefaultBindAddress = "0"
 })
 
 var _ = AfterSuite(func() {
-	if testenvHub != nil {
-		Expect(testenvHub.Stop()).To(Succeed())
-	}
-	if testenvMember != nil {
-		Expect(testenvMember.Stop()).To(Succeed())
-	}
-
 	// Put the DefaultBindAddress back
 	metricsserver.DefaultBindAddress = ":8080"
 })

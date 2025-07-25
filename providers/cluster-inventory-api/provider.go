@@ -25,8 +25,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,12 +40,14 @@ import (
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 
+	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+
 	"sigs.k8s.io/multicluster-runtime/providers/cluster-inventory-api/kubeconfigstrategy"
 )
 
 var _ multicluster.Provider = &Provider{}
 
-// Options are the options for the Cluster-API cluster Provider.
+// Options are the options for the Cluster Inventory API Provider.
 type Options struct {
 	// ClusterOptions are the options passed to the cluster constructor.
 	ClusterOptions []cluster.Option

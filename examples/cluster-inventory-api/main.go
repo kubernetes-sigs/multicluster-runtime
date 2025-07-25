@@ -19,10 +19,12 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"os"
 
 	"golang.org/x/sync/errgroup"
 	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,6 +52,9 @@ func init() {
 }
 
 func main() {
+	credentialsProviderFile := credentials.SetupProviderFileFlag()
+	flag.Parse()
+
 	ctrllog.SetLogger(zap.New(zap.UseDevMode(true)))
 	entryLog := ctrllog.Log.WithName("entrypoint")
 	ctx := signals.SetupSignalHandler()
@@ -61,13 +66,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the provider against the local manager.
+	// Load credential providers from configuration file
+	credentialsProvider, err := credentials.NewFromFile(*credentialsProviderFile)
+	if err != nil {
+		entryLog.Error(err, "Got error reading credentials providers")
+		os.Exit(1)
+	}
+
+	// Create the provider.
 	provider, err := clusterinventoryapi.New(clusterinventoryapi.Options{
+		// Specifying the strategy how to fetch kubeconfig from ClusterProfile.
 		KubeconfigStrategyOption: kubeconfigstrategy.Option{
-			// Use the Secret strategy with a specific consumer name.
-			Secret: kubeconfigstrategy.SecretStrategyOption{
-				ConsumerName: "cluster-inventory-api-consumer",
+			CredentialsProvider: &kubeconfigstrategy.CredentialsProviderOption{
+				Provider: credentialsProvider,
 			},
+			// // Alternative:
+			// //   You can use the Secret strategy, but it is not recommended for production use.
+			// Secret: &kubeconfigstrategy.SecretStrategyOption{
+			// 	ConsumerName: "cluster-inventory-api-consumer",
+			// },
 		},
 	})
 	if err != nil {
@@ -76,7 +93,7 @@ func main() {
 	}
 
 	// Create a multi-cluster manager attached to the provider.
-	entryLog.Info("Setting up local manager")
+	entryLog.Info("Setting up manager")
 	mcMgr, err := mcmanager.New(cfg, provider, manager.Options{
 		LeaderElection: false,
 		Metrics: metricsserver.Options{
