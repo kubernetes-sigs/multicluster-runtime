@@ -72,6 +72,13 @@ func main() {
 					return reconcile.Result{}, err
 				}
 
+				cl.GetEventRecorderFor("kind-multicluster-configmaps").Event(
+					cm,
+					corev1.EventTypeNormal,
+					"ConfigMapFound",
+					"ConfigMap found in cluster "+req.ClusterName,
+				)
+
 				log.Info("ConfigMap found", "namespace", cm.Namespace, "name", cm.Name, "cluster", req.ClusterName)
 
 				return ctrl.Result{}, nil
