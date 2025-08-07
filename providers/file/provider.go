@@ -50,12 +50,11 @@ type Options struct {
 	//
 	// If either one or both of KubeconfigFiles or KubeconfigDirs are
 	// set both are used as input for the provider.
-	// If both are empty defaults are in this order:
-	// 1. If the KUBECONFIG environment variable is set it is set in
-	//       KubeconfigFiles.
-	// 2. If ~/.kube/config exists it is set in KubeconfigFiles.
-	// 3. The working directory of the provider process is set in
-	//       KubeconfigDirs.
+	// If both are empty defaults are applied in order of precedence:
+	// 1. If the KUBECONFIG environment variable is set and contains
+	//       a path to a valid file it is used in KubeconfigFiles.
+	// 2. If ~/.kube/config exists it is used in KubeconfigFiles.
+	// 3. The working directory is used in KubeconfigDirs.
 	KubeconfigDirs []string
 
 	// KubeconfigGlobs are the glob patterns to match kubeconfig files
