@@ -30,7 +30,7 @@ import (
 type clusters map[string]cluster.Cluster
 
 func (p *Provider) loadClusters() (clusters, error) {
-	filepaths, err := p.collectPaths(p.opts.Paths)
+	filepaths, err := p.collectPaths()
 	if err != nil {
 		return nil, err
 	}
@@ -54,29 +54,30 @@ func (p *Provider) loadClusters() (clusters, error) {
 	return p.fromContexts(kubeCtxs), nil
 }
 
-func (p *Provider) collectPaths(paths []string) ([]string, error) {
-	filepaths := make([]string, 0, len(paths))
+func (p *Provider) collectPaths() ([]string, error) {
+	filepaths := []string{}
 
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-
-		stat, err := os.Stat(path)
-		if err != nil {
+	for _, file := range p.opts.KubeconfigFiles {
+		if _, err := os.Stat(file); err != nil {
 			if os.IsNotExist(err) {
-				p.log.Info("path does not exist, skipping", "path", path)
+				p.log.Info("kubeconfig file does not exist, skipping", "file", file)
 				continue
 			}
-			return nil, fmt.Errorf("failed to stat path %q: %w", path, err)
+			return nil, fmt.Errorf("failed to stat kubeconfig file %q: %w", file, err)
+		}
+		filepaths = append(filepaths, file)
+	}
+
+	for _, dir := range p.opts.KubeconfigDirs {
+		if _, err := os.Stat(dir); err != nil {
+			if os.IsNotExist(err) {
+				p.log.Info("directory does not exist, skipping", "dir", dir)
+				continue
+			}
+			return nil, fmt.Errorf("failed to stat directory %q: %w", dir, err)
 		}
 
-		if !stat.IsDir() {
-			filepaths = append(filepaths, path)
-			continue
-		}
-
-		filepaths = append(filepaths, p.matchKubeconfigGlobs(path)...)
+		filepaths = append(filepaths, p.matchKubeconfigGlobs(dir)...)
 	}
 
 	return filepaths, nil

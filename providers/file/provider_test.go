@@ -50,7 +50,8 @@ var _ = Describe("Provider File", Ordered, func() {
 		By("Creating a new provider", func() {
 			var err error
 			provider, err = New(Options{
-				Paths: []string{discoverDir, kubeconfigPath},
+				KubeconfigFiles: []string{kubeconfigPath},
+				KubeconfigDirs:  []string{discoverDir},
 			})
 			Expect(err).NotTo(HaveOccurred())
 		})

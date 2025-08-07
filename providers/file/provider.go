@@ -46,16 +46,22 @@ type Options struct {
 	// Default is one second.
 	UpdateInterval time.Duration
 
-	// Paths can be either paths to kubeconfig files or directories.
-	// If a directory is specified, the provider will look for files
-	// matching the KubeconfigGlobs.
-	// The provider will collect all kubeconfig files from all paths.
-	// The default is:
-	// - KUBECONFIG if it is set
-	// - ~/.kube/config if it exists
-	// - the current directory otherwise.
-	// Default is the current directory.
-	Paths []string
+	// KubeconfigFiles are paths to kubeconfig files.
+	// The default depends on the KubeconfigDirs variable.
+	KubeconfigFiles []string
+
+	// KubeconfigDirs are directories to search for kubeconfig files matching the
+	// globs specified in KubeconfigGlobs.
+	//
+	// If either one or both of KubeconfigFiles or KubeconfigDirs are
+	// set both are used as input for the provider.
+	// If both are empty defaults are in this order:
+	// 1. If the KUBECONFIG environment variable is set it is set in
+	//       KubeconfigFiles.
+	// 2. If ~/.kube/config exists it is set in KubeconfigFiles.
+	// 3. The working directory of the provider process is set in
+	//       KubeconfigDirs.
+	KubeconfigDirs []string
 
 	// KubeconfigGlobs are the glob patterns to match kubeconfig files
 	// in directories.
@@ -73,16 +79,23 @@ var DefaultKubeconfigGlobs = []string{
 	"*.kubeconfig.yml",
 }
 
-func defaultKubeconfigPaths() []string {
+func (p *Provider) defaultKubeconfigPaths() ([]string, []string) {
 	if envKubeconfig := os.Getenv("KUBECONFIG"); envKubeconfig != "" {
-		return []string{envKubeconfig}
+		return []string{envKubeconfig}, []string{}
 	}
 
-	if fstat, err := os.Stat(os.ExpandEnv("$HOME/.kube/config")); err == nil && !fstat.IsDir() {
-		return []string{os.ExpandEnv("$HOME/.kube/config")}
+	defaultKubeconfig := os.ExpandEnv("$HOME/.kube/config")
+	if _, err := os.Stat(defaultKubeconfig); err == nil {
+		return []string{defaultKubeconfig}, []string{}
 	}
 
-	return []string{"."}
+	pwd, err := os.Getwd()
+	if err != nil {
+		p.log.Error(err, "error getting working directory, defaulting to '.'")
+		pwd = "."
+	}
+
+	return []string{}, []string{pwd}
 }
 
 // New returns a new Provider with the given options.
@@ -94,8 +107,8 @@ func New(opts Options) (*Provider, error) {
 		p.opts.UpdateInterval = 1 * time.Second
 	}
 
-	if len(p.opts.Paths) == 0 {
-		p.opts.Paths = defaultKubeconfigPaths()
+	if len(p.opts.KubeconfigFiles) == 0 && len(p.opts.KubeconfigDirs) == 0 {
+		p.opts.KubeconfigFiles, p.opts.KubeconfigDirs = p.defaultKubeconfigPaths()
 	}
 
 	if len(p.opts.KubeconfigGlobs) == 0 {
@@ -105,6 +118,8 @@ func New(opts Options) (*Provider, error) {
 	p.log = log.Log.WithName("file-cluster-provider")
 	p.clusters = make(map[string]cluster.Cluster)
 	p.clusterCancel = make(map[string]func())
+
+	fmt.Printf("file cluster provider initialized %q %q\n", p.opts.KubeconfigFiles, p.opts.KubeconfigDirs)
 
 	return p, nil
 }

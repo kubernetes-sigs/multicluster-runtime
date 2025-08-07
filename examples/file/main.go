@@ -29,9 +29,10 @@ import (
 )
 
 var (
-	fPaths    = flag.String("paths", "", "Comma-separated list of file paths to process (can be files or directories), defaults to current directory")
-	fGlobs    = flag.String("globs", "", "Comma-separated list of glob patterns to match files")
-	fContinue = flag.Bool("continue", false, "Continue processing and listing files until cancelled")
+	fKubeconfigFiles = flag.String("kubeconfigs", "", "Comma-separated list of kubeconfig file paths to process")
+	fKubeconfigDirs  = flag.String("kubeconfig-dirs", "", "Comma-separated list of directories to search for kubeconfig files")
+	fGlobs           = flag.String("globs", "", "Comma-separated list of glob patterns to match files")
+	fContinue        = flag.Bool("continue", false, "Continue processing and listing files until cancelled")
 )
 
 func printClusters(clusters []string) {
@@ -51,8 +52,19 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	kubeconfigFiles := strings.Split(*fKubeconfigFiles, ",")
+	if len(kubeconfigFiles) == 1 && kubeconfigFiles[0] == "" {
+		kubeconfigFiles = []string{}
+	}
+
+	kubeconfigDirs := strings.Split(*fKubeconfigDirs, ",")
+	if len(kubeconfigDirs) == 1 && kubeconfigDirs[0] == "" {
+		kubeconfigDirs = []string{}
+	}
+
 	provider, err := file.New(file.Options{
-		Paths:           strings.Split(*fPaths, ","),
+		KubeconfigFiles: kubeconfigFiles,
+		KubeconfigDirs:  kubeconfigDirs,
 		KubeconfigGlobs: strings.Split(*fGlobs, ","),
 	})
 	if err != nil {
