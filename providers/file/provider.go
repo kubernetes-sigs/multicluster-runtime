@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
+	"github.com/google/go-cmp/cmp"
 	"gopkg.in/fsnotify.v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -217,25 +218,34 @@ func (p *Provider) removeCluster(name string) {
 }
 
 func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
-	currentClusters, err := p.loadClusters()
+	loadedClusters, err := p.loadClusters()
 	if err != nil {
 		return fmt.Errorf("failed to load clusters: %w", err)
 	}
 	knownClusters := p.ClusterNames()
 
 	// add new clusters
-	for name, cl := range currentClusters {
+	for name, cl := range loadedClusters {
 		if slices.Contains(knownClusters, name) {
+			// update if the config has changed
+			existingCluster, _ := p.Get(ctx, name)
+			if !cmp.Equal(existingCluster.GetConfig(), cl.GetConfig()) {
+				p.log.Info("updating cluster", "name", name)
+				p.removeCluster(name)
+				p.addCluster(ctx, mgr, name, cl)
+			}
 			continue
 		}
+		p.log.Info("adding cluster", "name", name)
 		p.addCluster(ctx, mgr, name, cl)
 	}
 
 	// delete clusters that are no longer present
 	for _, name := range knownClusters {
-		if _, ok := currentClusters[name]; ok {
+		if _, ok := loadedClusters[name]; ok {
 			continue
 		}
+		p.log.Info("removing cluster", "name", name)
 		p.removeCluster(name)
 	}
 
