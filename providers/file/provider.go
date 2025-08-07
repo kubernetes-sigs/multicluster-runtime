@@ -21,13 +21,12 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
-
-	"k8s.io/apimachinery/pkg/util/wait"
+	"gopkg.in/fsnotify.v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
@@ -41,11 +40,6 @@ var _ multicluster.Provider = &Provider{}
 
 // Options defines the options for the file-based cluster provider.
 type Options struct {
-	// UpdateInterval is the interval at which the provider will poll
-	// for changes in the kubeconfig files and directories.
-	// Default is one second.
-	UpdateInterval time.Duration
-
 	// KubeconfigFiles are paths to kubeconfig files.
 	// The default depends on the KubeconfigDirs variable.
 	KubeconfigFiles []string
@@ -103,10 +97,6 @@ func New(opts Options) (*Provider, error) {
 	p := new(Provider)
 	p.opts = opts
 
-	if p.opts.UpdateInterval == 0 {
-		p.opts.UpdateInterval = 1 * time.Second
-	}
-
 	if len(p.opts.KubeconfigFiles) == 0 && len(p.opts.KubeconfigDirs) == 0 {
 		p.opts.KubeconfigFiles, p.opts.KubeconfigDirs = p.defaultKubeconfigPaths()
 	}
@@ -141,12 +131,50 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 	if err := p.run(ctx, mgr); err != nil {
 		return fmt.Errorf("initial update failed: %w", err)
 	}
-	return wait.PollUntilContextCancel(ctx, p.opts.UpdateInterval, true, func(ctx context.Context) (done bool, err error) {
-		if err := p.run(ctx, mgr); err != nil {
-			p.log.Error(err, "failed to update clusters")
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to create file watcher: %w", err)
+	}
+	defer watcher.Close()
+
+	for _, file := range p.opts.KubeconfigFiles {
+		// Watching the directory instead of kubeconfig files as
+		// watching non-existing files is not supported in fsnotify.
+		if err := watcher.Add(filepath.Dir(file)); err != nil {
+			return fmt.Errorf("failed to watch parent dir of kubeconfig file %q: %w", file, err)
 		}
-		return false, nil
-	})
+	}
+
+	for _, dir := range p.opts.KubeconfigDirs {
+		if err := watcher.Add(dir); err != nil {
+			return fmt.Errorf("failed to watch kubeconfig directory %q: %w", dir, err)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return fmt.Errorf("file watcher closed")
+			}
+			p.log.Info("received fsnotify event", "event", event)
+			// Only updating from a single file would be possible but
+			// would also require to track which cluster belongs to
+			// which file.
+			// Instead clusters are just updated from all files.
+			if err := p.run(ctx, mgr); err != nil {
+				p.log.Error(err, "failed to update clusters after file change")
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return fmt.Errorf("file watcher errors channel closed")
+			}
+			p.log.Error(err, "file watcher error")
+		}
+	}
 }
 
 // RunOnce performs a single update of the clusters.
