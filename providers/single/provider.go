@@ -18,6 +18,7 @@ package namespace
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
@@ -30,8 +31,9 @@ var _ multicluster.Provider = &Provider{}
 
 // Provider is a provider that engages the passed cluster.
 type Provider struct {
-	name string
-	cl   cluster.Cluster
+	name    string
+	cl      cluster.Cluster
+	manager mcmanager.Manager
 }
 
 // New returns a provider engaging the passed cluster under the given name.
@@ -43,9 +45,19 @@ func New(name string, cl cluster.Cluster) *Provider {
 	}
 }
 
+// WithManager sets the manager on the provider.
+func (p *Provider) WithManager(mgr mcmanager.Manager) *Provider {
+	p.manager = mgr
+	return p
+}
+
 // Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	if err := mgr.Engage(ctx, p.name, p.cl); err != nil {
+func (p *Provider) Run(ctx context.Context) error {
+	if p.manager == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
+	if err := p.manager.Engage(ctx, p.name, p.cl); err != nil {
 		return err
 	}
 	<-ctx.Done()

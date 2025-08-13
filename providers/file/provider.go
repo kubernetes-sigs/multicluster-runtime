@@ -138,13 +138,22 @@ type Provider struct {
 	log logr.Logger
 
 	clustersLock  sync.RWMutex
+	mgr           mcmanager.Manager
 	clusters      map[string]cluster.Cluster
 	clusterCancel map[string]func()
 }
 
+func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
+	p.clustersLock.Lock()
+	defer p.clustersLock.Unlock()
+
+	p.mgr = mgr
+	return nil
+}
+
 // Run starts the provider and updates the clusters and is blocking.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	if err := p.run(ctx, mgr); err != nil {
+func (p *Provider) Run(ctx context.Context) error {
+	if err := p.run(ctx); err != nil {
 		return fmt.Errorf("initial update failed: %w", err)
 	}
 
@@ -181,7 +190,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			// would also require to track which cluster belongs to
 			// which file.
 			// Instead clusters are just updated from all files.
-			if err := p.run(ctx, mgr); err != nil {
+			if err := p.run(ctx); err != nil {
 				p.log.Error(err, "failed to update clusters after file change")
 			}
 		case err, ok := <-watcher.Errors:
@@ -194,11 +203,11 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 }
 
 // RunOnce performs a single update of the clusters.
-func (p *Provider) RunOnce(ctx context.Context, mgr mcmanager.Manager) error {
-	return p.run(ctx, mgr)
+func (p *Provider) RunOnce(ctx context.Context) error {
+	return p.run(ctx)
 }
 
-func (p *Provider) addCluster(ctx context.Context, mgr mcmanager.Manager, name string, cl cluster.Cluster) {
+func (p *Provider) addCluster(ctx context.Context, name string, cl cluster.Cluster) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	p.clustersLock.Lock()
@@ -213,8 +222,8 @@ func (p *Provider) addCluster(ctx context.Context, mgr mcmanager.Manager, name s
 		p.removeCluster(name)
 	}()
 
-	if mgr != nil {
-		if err := mgr.Engage(ctx, name, cl); err != nil {
+	if p.mgr != nil {
+		if err := p.mgr.Engage(ctx, name, cl); err != nil {
 			cancel()
 			p.log.Error(err, "failed to engage cluster", "name", name)
 		}
@@ -232,7 +241,11 @@ func (p *Provider) removeCluster(name string) {
 	}
 }
 
-func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
+func (p *Provider) run(ctx context.Context) error {
+	if p.mgr == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
 	loadedClusters, err := p.loadClusters()
 	if err != nil {
 		return fmt.Errorf("failed to load clusters: %w", err)
@@ -247,12 +260,12 @@ func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
 			if !cmp.Equal(existingCluster.GetConfig(), cl.GetConfig()) {
 				p.log.Info("updating cluster", "name", name)
 				p.removeCluster(name)
-				p.addCluster(ctx, mgr, name, cl)
+				p.addCluster(ctx, name, cl)
 			}
 			continue
 		}
 		p.log.Info("adding cluster", "name", name)
-		p.addCluster(ctx, mgr, name, cl)
+		p.addCluster(ctx, name, cl)
 	}
 
 	// delete clusters that are no longer present

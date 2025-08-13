@@ -57,6 +57,8 @@ type index struct {
 
 // Provider is a cluster Provider that works with a local Kind instance.
 type Provider struct {
+	mcMgr mcmanager.Manager
+
 	opts      []cluster.Option
 	log       logr.Logger
 	lock      sync.RWMutex
@@ -76,8 +78,20 @@ func (p *Provider) Get(ctx context.Context, clusterName string) (cluster.Cluster
 	return nil, multicluster.ErrClusterNotFound
 }
 
+func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.mcMgr = mgr
+	return nil
+}
+
 // Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
+func (p *Provider) Run(ctx context.Context) error {
+	if p.mcMgr == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
 	p.log.Info("Starting kind cluster provider")
 
 	provider := kind.NewProvider()
@@ -152,15 +166,13 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			p.log.Info("Added new cluster", "cluster", clusterName)
 
 			// engage manager
-			if mgr != nil {
-				if err := mgr.Engage(clusterCtx, clusterName, cl); err != nil {
-					log.Error(err, "failed to engage manager")
-					p.lock.Lock()
-					delete(p.clusters, clusterName)
-					delete(p.cancelFns, clusterName)
-					p.lock.Unlock()
-					return false, nil
-				}
+			if err := p.mcMgr.Engage(clusterCtx, clusterName, cl); err != nil {
+				log.Error(err, "failed to engage manager")
+				p.lock.Lock()
+				delete(p.clusters, clusterName)
+				delete(p.cancelFns, clusterName)
+				p.lock.Unlock()
+				return false, nil
 			}
 		}
 

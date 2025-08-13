@@ -291,3 +291,14 @@ func (p *Provider) IndexField(ctx context.Context, obj client.Object, field stri
 
 	return nil
 }
+
+// Run runs the provider and blocks.
+func (p *Provider) Run(ctx context.Context) error {
+	if p.mcMgr == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
+	<-ctx.Done()
+
+	return ctx.Err()
+}
