@@ -52,8 +52,8 @@ echo "Creating release tags ..."
 git tag -am "${TAG}" "${TAG}" ${GIT_TAG_OPTIONS}
 echo "Created tag ${TAG}."
 
-# create provider and example tags
-find "providers" "examples" -name go.mod | while read -r GOMOD; do
+# create provider tags
+find "providers" -name go.mod | while read -r GOMOD; do
     module=$(dirname "${GOMOD}")
     git tag -am "${module}/${TAG}" "${module}/${TAG}" ${GIT_TAG_OPTIONS}
     echo "Created tag ${module}/${TAG}."
