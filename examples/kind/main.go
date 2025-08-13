@@ -92,7 +92,7 @@ func main() {
 	// Starting everything.
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
+		return ignoreCanceled(provider.Start(ctx, mgr))
 	})
 	g.Go(func() error {
 		return ignoreCanceled(mgr.Start(ctx))

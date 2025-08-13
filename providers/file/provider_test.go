@@ -54,11 +54,12 @@ var _ = Describe("Provider File", Ordered, func() {
 				KubeconfigDirs:  []string{discoverDir},
 			})
 			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		By("Starting the provider", func() {
 			g.Go(func() error {
-				return ignoreCanceled(provider.Run(ctx, nil))
+				return ignoreCanceled(provider.Start(ctx, nil)) // Pass nil for aware since we are not using a manager in this test
 			})
 		})
 

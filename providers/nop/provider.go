@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
@@ -36,8 +35,8 @@ func New() *Provider {
 	return &Provider{}
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, _ mcmanager.Manager) error {
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
 	<-ctx.Done()
 	return nil
 }

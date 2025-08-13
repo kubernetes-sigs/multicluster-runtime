@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
@@ -43,6 +42,7 @@ var _ multicluster.Provider = &Provider{}
 // informer to watch objects for all namespaces.
 type Provider struct {
 	cluster cluster.Cluster
+	mcAware multicluster.Aware
 
 	log       logr.Logger
 	lock      sync.RWMutex
@@ -60,8 +60,12 @@ func New(cl cluster.Cluster) *Provider {
 	}
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
+	p.lock.Lock()
+	p.mcAware = aware
+	p.lock.Unlock()
+
 	nsInf, err := p.cluster.GetCache().GetInformer(ctx, &corev1.Namespace{})
 	if err != nil {
 		return err
@@ -88,7 +92,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			p.cancelFns[ns.Name] = cancel
 			p.lock.Unlock()
 
-			if err := mgr.Engage(clusterCtx, ns.Name, cl); err != nil {
+			if err := p.mcAware.Engage(clusterCtx, ns.Name, cl); err != nil {
 				utilruntime.HandleError(fmt.Errorf("failed to engage manager with cluster %q: %w", ns.Name, err))
 
 				// cleanup

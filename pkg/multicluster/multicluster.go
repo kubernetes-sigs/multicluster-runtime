@@ -60,4 +60,9 @@ type Provider interface {
 	// IndexField indexes the given object by the given field on all engaged
 	// clusters, current and future.
 	IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error
+
+	// Start runs the provider. Implementation of this method should block.
+	// If you need to pass in manager, it is recommended to implement SetupWithManager(mgr mcmanager.Manager) error method on individual providers.
+	// Even if a provider gets a manager through e.g. `SetupWithManager` the `Aware` passed to this method must be used to engage clusters.
+	Start(context.Context, Aware) error
 }

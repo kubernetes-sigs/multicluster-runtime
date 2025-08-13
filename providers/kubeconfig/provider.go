@@ -93,12 +93,12 @@ type index struct {
 // Provider is a cluster provider that watches for secrets containing kubeconfig data
 // and engages clusters based on those kubeconfigs.
 type Provider struct {
-	opts     Options
-	log      logr.Logger
-	lock     sync.RWMutex // protects clusters and indexers
-	clusters map[string]activeCluster
-	indexers []index
-	mgr      mcmanager.Manager
+	opts      Options
+	log       logr.Logger
+	lock      sync.RWMutex // protects clusters and indexers
+	clusters  map[string]activeCluster
+	indexers  []index
+	mcmanager mcmanager.Manager
 }
 
 type activeCluster struct {
@@ -115,6 +115,13 @@ func (p *Provider) getCluster(clusterName string) (activeCluster, bool) {
 
 	ac, exists := p.clusters[clusterName]
 	return ac, exists
+}
+
+// Start runs the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
+	<-ctx.Done()
+
+	return nil
 }
 
 // setCluster adds a cluster with write lock
@@ -150,7 +157,7 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 	if mgr == nil {
 		return fmt.Errorf("manager is nil")
 	}
-	p.mgr = mgr
+	p.mcmanager = mgr
 
 	// Get the local manager from the multicluster manager
 	localMgr := mgr.GetLocalManager()
@@ -233,7 +240,7 @@ func (p *Provider) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result
 // getSecret retrieves a secret and handles not found errors
 func (p *Provider) getSecret(ctx context.Context, namespacedName client.ObjectKey) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
-	if err := p.mgr.GetLocalManager().GetClient().Get(ctx, namespacedName, secret); err != nil {
+	if err := p.mcmanager.GetLocalManager().GetClient().Get(ctx, namespacedName, secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil // Secret not found is not an error
 		}
@@ -305,7 +312,7 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 	log.Info("Successfully added cluster")
 
 	// Engage cluster so that the manager can start operating on the cluster
-	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
+	if err := p.mcmanager.Engage(clusterCtx, clusterName, cl); err != nil {
 		log.Error(err, "Failed to engage manager, removing cluster")
 		p.removeCluster(clusterName)
 		return fmt.Errorf("failed to engage manager: %w", err)

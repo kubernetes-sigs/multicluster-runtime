@@ -18,11 +18,11 @@ package namespace
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
@@ -43,9 +43,13 @@ func New(name string, cl cluster.Cluster) *Provider {
 	}
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	if err := mgr.Engage(ctx, p.name, p.cl); err != nil {
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
+	if mcAware == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
+	if err := mcAware.Engage(ctx, p.name, p.cl); err != nil {
 		return err
 	}
 	<-ctx.Done()
