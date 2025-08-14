@@ -117,6 +117,13 @@ func (p *Provider) getCluster(clusterName string) (activeCluster, bool) {
 	return ac, exists
 }
 
+// Run runs the provider and blocks.
+func (p *Provider) Run(ctx context.Context) error {
+	<-ctx.Done()
+
+	return nil
+}
+
 // setCluster adds a cluster with write lock
 func (p *Provider) setCluster(clusterName string, ac activeCluster) {
 	p.lock.Lock()

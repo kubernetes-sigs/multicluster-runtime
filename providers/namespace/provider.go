@@ -43,6 +43,7 @@ var _ multicluster.Provider = &Provider{}
 // informer to watch objects for all namespaces.
 type Provider struct {
 	cluster cluster.Cluster
+	manager mcmanager.Manager
 
 	log       logr.Logger
 	lock      sync.RWMutex
@@ -60,8 +61,18 @@ func New(cl cluster.Cluster) *Provider {
 	}
 }
 
+// SetupWithManager sets the manager on the provider.
+func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
+	p.manager = mgr
+	return nil
+}
+
 // Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
+func (p *Provider) Run(ctx context.Context) error {
+	if p.manager == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
 	nsInf, err := p.cluster.GetCache().GetInformer(ctx, &corev1.Namespace{})
 	if err != nil {
 		return err
@@ -88,7 +99,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			p.cancelFns[ns.Name] = cancel
 			p.lock.Unlock()
 
-			if err := mgr.Engage(clusterCtx, ns.Name, cl); err != nil {
+			if err := p.manager.Engage(clusterCtx, ns.Name, cl); err != nil {
 				utilruntime.HandleError(fmt.Errorf("failed to engage manager with cluster %q: %w", ns.Name, err))
 
 				// cleanup

@@ -71,6 +71,8 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			var err error
 			mgr, err = mcmanager.New(cfg, provider, manager.Options{})
 			Expect(err).NotTo(HaveOccurred())
+			err = provider.SetupWithManager(mgr)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		By("Setting up the controller feeding the animals", func() {
@@ -119,7 +121,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 
 		By("Starting the provider, cluster, manager, and controller", func() {
 			g.Go(func() error {
-				return ignoreCanceled(provider.Run(ctx, mgr))
+				return ignoreCanceled(provider.Run(ctx))
 			})
 			g.Go(func() error {
 				return ignoreCanceled(cl.Start(ctx))

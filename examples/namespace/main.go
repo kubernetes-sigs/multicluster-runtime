@@ -122,6 +122,10 @@ func run(ctx context.Context, log logr.Logger, kubeconfig string) error {
 		return fmt.Errorf("unable to set up overall controller manager: %w", err)
 	}
 
+	if err := provider.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to set up provider: %w", err)
+	}
+
 	if err := mcbuilder.ControllerManagedBy(mgr).
 		Named("multicluster-configmaps").
 		For(&corev1.ConfigMap{}).
@@ -154,7 +158,7 @@ func run(ctx context.Context, log logr.Logger, kubeconfig string) error {
 	// Starting everything.
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
+		return ignoreCanceled(provider.Run(ctx))
 	})
 	g.Go(func() error {
 		return ignoreCanceled(cl.Start(ctx))

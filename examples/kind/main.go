@@ -51,6 +51,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := provider.SetupWithManager(mgr); err != nil {
+		entryLog.Error(err, "unable to set up provider")
+		os.Exit(1)
+	}
+
 	err = mcbuilder.ControllerManagedBy(mgr).
 		Named("multicluster-configmaps").
 		For(&corev1.ConfigMap{}).
@@ -92,7 +97,7 @@ func main() {
 	// Starting everything.
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
+		return ignoreCanceled(provider.Run(ctx))
 	})
 	g.Go(func() error {
 		return ignoreCanceled(mgr.Start(ctx))

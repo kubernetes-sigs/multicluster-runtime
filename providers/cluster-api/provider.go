@@ -126,13 +126,21 @@ func (p *Provider) Get(_ context.Context, clusterName string) (cluster.Cluster, 
 	return nil, multicluster.ErrClusterNotFound
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	p.log.Info("Starting Cluster-API cluster provider")
-
+func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
 	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.mcMgr = mgr
-	p.lock.Unlock()
+	return nil
+}
+
+// Run starts the provider and blocks.
+func (p *Provider) Run(ctx context.Context) error {
+	if p.mcMgr == nil {
+		return fmt.Errorf("manager is not set")
+	}
+
+	p.log.Info("Starting Cluster-API cluster provider")
 
 	<-ctx.Done()
 
