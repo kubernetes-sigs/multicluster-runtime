@@ -56,6 +56,11 @@ type Options struct {
 	// NewCluster is a function that creates a new cluster from a rest.Config.
 	// The cluster will be started by the provider.
 	NewCluster func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error)
+
+	// IsReady is a function that determines if a cluster is ready.
+	// If not provided, a default readiness check is used which checks for the
+	// ControlPlaneHealthy condition on the ClusterProfile.
+	IsReady func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool
 }
 
 type index struct {
@@ -84,6 +89,12 @@ func setDefaults(opts *Options) {
 	if opts.NewCluster == nil {
 		opts.NewCluster = func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error) {
 			return cluster.New(cfg, opts...)
+		}
+	}
+	if opts.IsReady == nil {
+		opts.IsReady = func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool {
+			controlPlaneHealthyCondition := meta.FindStatusCondition(clp.Status.Conditions, clusterinventoryv1alpha1.ClusterConditionControlPlaneHealthy)
+			return controlPlaneHealthyCondition != nil && controlPlaneHealthyCondition.Status == metav1.ConditionTrue
 		}
 	}
 }
@@ -194,8 +205,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	}
 
 	// ready?
-	controlPlaneHealthyCondition := meta.FindStatusCondition(clp.Status.Conditions, clusterinventoryv1alpha1.ClusterConditionControlPlaneHealthy)
-	if controlPlaneHealthyCondition == nil || controlPlaneHealthyCondition.Status != metav1.ConditionTrue {
+	if !p.opts.IsReady(ctx, clp) {
 		log.Info("ClusterProfile is not healthy yet, requeuing")
 		return reconcile.Result{RequeueAfter: time.Second * 10}, nil
 	}
