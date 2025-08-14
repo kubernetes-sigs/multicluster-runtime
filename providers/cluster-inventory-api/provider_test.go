@@ -471,6 +471,76 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 			shutDownClusters()
 		})
 	})
+
+	Context("Custom readiness check", Ordered, func() {
+		const consumerName = "hub"
+		var sa1TokenMember string
+
+		BeforeAll(func() {
+			ctx, cancel = context.WithCancel(context.Background())
+			g, _ = errgroup.WithContext(ctx)
+
+			createClusters()
+
+			By("Setting up the Provider", func() {
+				var err error
+				provider, err = New(Options{
+					KubeconfigStrategyOption: kubeconfigstrategy.Option{
+						Secret: &kubeconfigstrategy.SecretStrategyOption{
+							ConsumerName: consumerName,
+						},
+					},
+					IsReady: func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool {
+						return true
+					},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(provider).NotTo(BeNil())
+			})
+
+			setupAndStartControllers()
+
+			By("Setting up the ClusterProfile for member clusters", func() {
+				profileMember = &clusterinventoryv1alpha1.ClusterProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "member",
+						Namespace: "default",
+					},
+					Spec: clusterinventoryv1alpha1.ClusterProfileSpec{
+						DisplayName: "member",
+						ClusterManager: clusterinventoryv1alpha1.ClusterManager{
+							Name: "test",
+						},
+					},
+				}
+				Expect(cliHub.Create(ctx, profileMember)).To(Succeed())
+
+				sa1TokenMember = mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
+				mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
+					ctx, cliHub, cfgMember,
+					consumerName,
+					*profileMember,
+					sa1TokenMember,
+				)
+			})
+
+			createObjects()
+		})
+
+		assertBasicControllerBehavior()
+		assertClusterIndexBehavior()
+
+		AfterAll(func() {
+			By("Stopping the provider, cluster, manager, and controller", func() {
+				cancel()
+			})
+			By("Waiting for the error group to finish", func() {
+				err := g.Wait()
+				Expect(err).NotTo(HaveOccurred())
+			})
+			shutDownClusters()
+		})
+	})
 })
 
 func ignoreCanceled(err error) error {
