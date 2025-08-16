@@ -40,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -117,7 +116,7 @@ func run(ctx context.Context, log logr.Logger, kubeconfig string) error {
 
 	// Setup a cluster-aware Manager, with the provider to lookup clusters.
 	log.Info("Setting up cluster-aware manager")
-	mgr, err := mcmanager.New(cfg, provider, manager.Options{})
+	mgr, err := mcmanager.New(cfg, provider, mcmanager.Options{})
 	if err != nil {
 		return fmt.Errorf("unable to set up overall controller manager: %w", err)
 	}

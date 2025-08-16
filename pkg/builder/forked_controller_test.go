@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
@@ -291,9 +292,11 @@ var _ = Describe("application", func() {
 
 			By("creating a controller manager")
 			m, err := mcmanager.New(cfg, nil, mcmanager.Options{
-				Controller: config.Controller{
-					GroupKindConcurrency: map[string]int{
-						"ReplicaSet.apps": maxConcurrentReconciles,
+				Options: manager.Options{
+					Controller: config.Controller{
+						GroupKindConcurrency: map[string]int{
+							"ReplicaSet.apps": maxConcurrentReconciles,
+						},
 					},
 				},
 			})
@@ -538,7 +541,11 @@ var _ = Describe("application", func() {
 			// use a cache that intercepts requests for fully typed objects to
 			// ensure we use the projected versions
 			var err error
-			mgr, err = mcmanager.New(cfg, nil, mcmanager.Options{NewCache: newNonTypedOnlyCache})
+			mgr, err = mcmanager.New(cfg, nil, mcmanager.Options{
+				Options: manager.Options{
+					NewCache: newNonTypedOnlyCache,
+				},
+			})
 			Expect(err).NotTo(HaveOccurred())
 		})
 

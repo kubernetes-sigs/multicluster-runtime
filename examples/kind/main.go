@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -45,7 +44,7 @@ func main() {
 	ctx := signals.SetupSignalHandler()
 
 	provider := kind.New()
-	mgr, err := mcmanager.New(ctrl.GetConfigOrDie(), provider, manager.Options{})
+	mgr, err := mcmanager.New(ctrl.GetConfigOrDie(), provider, mcmanager.Options{})
 	if err != nil {
 		entryLog.Error(err, "unable to create manager")
 		os.Exit(1)
