@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	mcbuilder "sigs.k8s.io/multicluster-runtime/pkg/builder"
@@ -89,7 +88,7 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			provider = New(Options{})
 
 			var err error
-			mgr, err = mcmanager.New(localCfg, provider, manager.Options{})
+			mgr, err = mcmanager.New(localCfg, provider, mcmanager.Options{})
 			Expect(err).NotTo(HaveOccurred())
 
 			provider.SetManager(mgr)

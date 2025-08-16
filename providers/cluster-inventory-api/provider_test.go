@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	mcbuilder "sigs.k8s.io/multicluster-runtime/pkg/builder"
@@ -109,8 +110,10 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 		By("Setting up the cluster-aware manager, with the provider to lookup clusters", func() {
 			var err error
 			mgr, err = mcmanager.New(cfgHub, provider, mcmanager.Options{
-				Controller: config.Controller{
-					SkipNameValidation: ptr.To(true),
+				Options: manager.Options{
+					Controller: config.Controller{
+						SkipNameValidation: ptr.To(true),
+					},
 				},
 			})
 			Expect(err).NotTo(HaveOccurred())
