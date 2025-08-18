@@ -16,8 +16,9 @@ import (
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
-// Clusters is a conccurency-safe map of clusters to be used in
-// providers.
+// Clusters implements the common patterns around managing clusters
+// observed in providers.
+// It partially implements the multicluster.Provider interface.
 type Clusters struct {
 	Lock     sync.RWMutex
 	Clusters map[string]cluster.Cluster
