@@ -190,6 +190,10 @@ func (p *Provider) RunOnce(ctx context.Context, mgr mcmanager.Manager) error {
 	return p.run(ctx, mgr)
 }
 
+func (p *Provider) handleClusterErr(name string, err error) {
+	p.log.Error(err, "error in cluster", "name", name)
+}
+
 func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
 	loadedClusters, err := p.loadClusters()
 	if err != nil {
@@ -200,7 +204,7 @@ func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
 	// add new clusters
 	for name, cl := range loadedClusters {
 		p.log.Info("adding or updating cluster", "name", name)
-		if err := p.Clusters.AddOrReplace(ctx, name, cl, mgr.Engage); err != nil {
+		if err := p.Clusters.AddOrReplace(ctx, name, cl, mgr.Engage, p.handleClusterErr); err != nil {
 			p.log.Error(err, "failed to add or replace cluster", "name", name)
 			continue
 		}

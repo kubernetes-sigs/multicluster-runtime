@@ -12,6 +12,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
 // Clusters is a conccurency-safe map of clusters to be used in
@@ -51,9 +53,13 @@ func (c *Clusters) Get(_ context.Context, name string) (cluster.Cluster, error) 
 	return cl, nil
 }
 
+// HandleClusterErrorFunc is called when a cluster encounters an error
+// during its lifecycle.
+type HandleClusterErrorFunc func(string, error)
+
 // Add adds a new cluster.
 // If a cluster with the given name already exists, it returns an error.
-func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, callback func(context.Context, string, cluster.Cluster) error) error {
+func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, callback multicluster.EngageFunc, handleError HandleClusterErrorFunc) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 
@@ -72,10 +78,7 @@ func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, cal
 	go func() {
 		defer c.Remove(name)
 		if err := cl.Start(ctx); err != nil {
-			cancel()
-			// TODO how to handle errors?
-			// Another callback?
-			// pass in a logger on creation?
+			handleError(name, err)
 		}
 	}()
 
@@ -98,11 +101,11 @@ func (c *Clusters) Remove(name string) {
 // If a cluster with the name already exists it compares the
 // configuration as returned by cluster.GetConfig() to compare
 // clusters.
-func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Cluster, callback func(context.Context, string, cluster.Cluster) error) error {
+func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Cluster, callback multicluster.EngageFunc, handleError HandleClusterErrorFunc) error {
 	existing, err := c.Get(ctx, name)
 	if err != nil {
 		// Cluster does not exist, add it
-		return c.Add(ctx, name, cl, callback)
+		return c.Add(ctx, name, cl, callback, handleError)
 	}
 
 	if cmp.Equal(existing.GetConfig(), cl.GetConfig()) {
@@ -112,7 +115,7 @@ func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Clu
 
 	// Cluster exists with a different config, replace it
 	c.Remove(name)
-	return c.Add(ctx, name, cl, callback)
+	return c.Add(ctx, name, cl, callback, handleError)
 }
 
 // IndexField indexes a field on all clusters.

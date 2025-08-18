@@ -23,6 +23,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
+// EngageFunc is a function that starts operations for a given Cluster.
+// See the Aware interface for more details.
+type EngageFunc func(ctx context.Context, clusterName string, c cluster.Cluster) error
+
 // Aware is an interface that can be implemented by components that
 // can engage and disengage when clusters are added or removed at runtime.
 type Aware interface {
