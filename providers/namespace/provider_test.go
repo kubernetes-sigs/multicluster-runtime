@@ -71,7 +71,6 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			var err error
 			mgr, err = mcmanager.New(cfg, provider, manager.Options{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(err).NotTo(HaveOccurred())
 		})
 
 		By("Setting up the controller feeding the animals", func() {
