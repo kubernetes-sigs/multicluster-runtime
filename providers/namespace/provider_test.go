@@ -119,7 +119,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 
 		By("Starting the provider, cluster, manager, and controller", func() {
 			g.Go(func() error {
-				return ignoreCanceled(provider.Run(ctx, mgr))
+				return ignoreCanceled(provider.Start(ctx, mgr))
 			})
 			g.Go(func() error {
 				return ignoreCanceled(cl.Start(ctx))

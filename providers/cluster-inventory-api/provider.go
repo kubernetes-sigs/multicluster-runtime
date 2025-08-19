@@ -78,7 +78,7 @@ type Provider struct {
 	strategy kubeconfigstrategy.Interface
 
 	lock       sync.RWMutex
-	mcMgr      mcmanager.Manager
+	manager    mcmanager.Manager
 	clusters   map[string]cluster.Cluster
 	cancelFns  map[string]context.CancelFunc
 	kubeconfig map[string]*rest.Config
@@ -125,7 +125,7 @@ func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
 	if mgr == nil {
 		return fmt.Errorf("manager is nil")
 	}
-	p.mcMgr = mgr
+	p.manager = mgr
 
 	// Get the local manager from the multi-cluster manager.
 	localMgr := mgr.GetLocalManager()
@@ -199,7 +199,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	defer p.lock.Unlock()
 
 	// provider already started?
-	if p.mcMgr == nil {
+	if p.manager == nil {
 		log.V(3).Info("Provider not started yet, requeuing")
 		return reconcile.Result{RequeueAfter: time.Second * 2}, nil
 	}
@@ -267,7 +267,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	log.Info("Added new cluster for ClusterProfile")
 
 	// engage manager.
-	if err := p.mcMgr.Engage(clusterCtx, key, cl); err != nil {
+	if err := p.manager.Engage(clusterCtx, key, cl); err != nil {
 		log.Error(err, "failed to engage manager for ClusterProfile")
 		delete(p.clusters, key)
 		delete(p.cancelFns, key)
@@ -300,4 +300,10 @@ func (p *Provider) IndexField(ctx context.Context, obj client.Object, field stri
 	}
 
 	return nil
+}
+
+// Start runs the provider and blocks.
+func (p *Provider) Start(ctx context.Context, _ multicluster.Aware) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
