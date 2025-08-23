@@ -60,7 +60,7 @@ type HandleClusterErrorFunc func(string, error)
 
 // Add adds a new cluster.
 // If a cluster with the given name already exists, it returns an error.
-func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, callback multicluster.EngageFunc, handleError HandleClusterErrorFunc) error {
+func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 
@@ -69,7 +69,7 @@ func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, cal
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-	if err := callback(ctx, name, cl); err != nil {
+	if err := aware.Engage(ctx, name, cl); err != nil {
 		cancel()
 		return err
 	}
@@ -102,11 +102,11 @@ func (c *Clusters) Remove(name string) {
 // If a cluster with the name already exists it compares the
 // configuration as returned by cluster.GetConfig() to compare
 // clusters.
-func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Cluster, callback multicluster.EngageFunc, handleError HandleClusterErrorFunc) error {
+func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Cluster, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
 	existing, err := c.Get(ctx, name)
 	if err != nil {
 		// Cluster does not exist, add it
-		return c.Add(ctx, name, cl, callback, handleError)
+		return c.Add(ctx, name, cl, aware, handleError)
 	}
 
 	if cmp.Equal(existing.GetConfig(), cl.GetConfig()) {
@@ -116,7 +116,7 @@ func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Clu
 
 	// Cluster exists with a different config, replace it
 	c.Remove(name)
-	return c.Add(ctx, name, cl, callback, handleError)
+	return c.Add(ctx, name, cl, aware, handleError)
 }
 
 // IndexField indexes a field on all clusters.
