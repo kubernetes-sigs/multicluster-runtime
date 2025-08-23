@@ -114,7 +114,7 @@ func New(opts Options) (*Provider, error) {
 	}
 
 	p.log = log.Log.WithName("file-cluster-provider")
-	p.Clusters = clusters.New()
+	p.Clusters = clusters.New[cluster.Cluster]()
 
 	p.log.Info("file cluster provider initialized",
 		"kubeconfigFiles", p.opts.KubeconfigFiles,
@@ -128,7 +128,7 @@ func New(opts Options) (*Provider, error) {
 // Provider is a multicluster.Provider that loads clusters from
 // kubeconfig files or directories on disk.
 type Provider struct {
-	clusters.Clusters
+	clusters.Clusters[cluster.Cluster]
 
 	opts Options
 	log  logr.Logger
@@ -204,7 +204,7 @@ func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
 	// add new clusters
 	for name, cl := range loadedClusters {
 		p.log.Info("adding or updating cluster", "name", name)
-		if err := p.Clusters.AddOrReplace(ctx, name, cl, mgr.Engage, p.handleClusterErr); err != nil {
+		if err := p.Clusters.AddOrReplace(ctx, name, cl, mgr, p.handleClusterErr); err != nil {
 			p.log.Error(err, "failed to add or replace cluster", "name", name)
 			continue
 		}

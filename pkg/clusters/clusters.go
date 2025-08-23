@@ -19,36 +19,41 @@ import (
 // Clusters implements the common patterns around managing clusters
 // observed in providers.
 // It partially implements the multicluster.Provider interface.
-type Clusters struct {
+type Clusters[O cluster.Cluster] struct {
 	Lock     sync.RWMutex
-	Clusters map[string]cluster.Cluster
+	Clusters map[string]O
 	Cancels  map[string]context.CancelFunc
 }
 
 // New returns a new instance of Clusters.
-func New() Clusters {
-	return Clusters{
-		Clusters: make(map[string]cluster.Cluster),
+func New[O cluster.Cluster]() Clusters[O] {
+	return Clusters[O]{
+		Clusters: make(map[string]O),
 		Cancels:  make(map[string]context.CancelFunc),
 	}
 }
 
 // ClusterNames returns the names of all clusters in a sorted order.
-func (c *Clusters) ClusterNames() []string {
+func (c *Clusters[O]) ClusterNames() []string {
 	c.Lock.RLock()
 	defer c.Lock.RUnlock()
 	return slices.Sorted(maps.Keys(c.Clusters))
 }
 
-// Get returns the cluster with the given name.
+// Get returns the cluster with the given name as a cluster.Cluster.
 // It implements the Get method from the Provider interface.
-func (c *Clusters) Get(_ context.Context, name string) (cluster.Cluster, error) {
+func (c *Clusters[O]) Get(ctx context.Context, name string) (cluster.Cluster, error) {
+	return c.GetTyped(ctx, name)
+}
+
+// GetTyped returns the cluster with the given name.
+func (c *Clusters[O]) GetTyped(_ context.Context, name string) (O, error) {
 	c.Lock.RLock()
 	defer c.Lock.RUnlock()
 
 	cl, ok := c.Clusters[name]
 	if !ok {
-		return nil, fmt.Errorf("cluster with name %s not found", name)
+		return *new(O), fmt.Errorf("cluster with name %s not found", name)
 	}
 
 	return cl, nil
@@ -60,7 +65,7 @@ type HandleClusterErrorFunc func(string, error)
 
 // Add adds a new cluster.
 // If a cluster with the given name already exists, it returns an error.
-func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
+func (c *Clusters[O]) Add(ctx context.Context, name string, cl O, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 
@@ -87,7 +92,7 @@ func (c *Clusters) Add(ctx context.Context, name string, cl cluster.Cluster, awa
 }
 
 // Remove removes a cluster by name.
-func (c *Clusters) Remove(name string) {
+func (c *Clusters[O]) Remove(name string) {
 	c.Lock.Lock()
 	defer c.Lock.Unlock()
 
@@ -102,7 +107,7 @@ func (c *Clusters) Remove(name string) {
 // If a cluster with the name already exists it compares the
 // configuration as returned by cluster.GetConfig() to compare
 // clusters.
-func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Cluster, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
+func (c *Clusters[O]) AddOrReplace(ctx context.Context, name string, cl O, aware multicluster.Aware, handleError HandleClusterErrorFunc) error {
 	existing, err := c.Get(ctx, name)
 	if err != nil {
 		// Cluster does not exist, add it
@@ -121,7 +126,7 @@ func (c *Clusters) AddOrReplace(ctx context.Context, name string, cl cluster.Clu
 
 // IndexField indexes a field on all clusters.
 // It implements the IndexField method from the Provider interface.
-func (c *Clusters) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
+func (c *Clusters[O]) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
 	c.Lock.RLock()
 	defer c.Lock.RUnlock()
 
