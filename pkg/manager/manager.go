@@ -134,7 +134,7 @@ type mcManager struct {
 // New returns a new Manager for creating Controllers. The provider is used to
 // discover and manage clusters. With a provider set to nil, the manager will
 // behave like a regular controller-runtime manager.
-func New(config *rest.Config, provider multicluster.Provider, opts manager.Options) (Manager, error) {
+func New(config *rest.Config, provider multicluster.Provider, opts Options) (Manager, error) {
 	mgr, err := manager.New(config, opts)
 	if err != nil {
 		return nil, err

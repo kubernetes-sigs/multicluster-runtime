@@ -28,7 +28,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -70,7 +69,7 @@ func main() {
 	provider := kubeconfigprovider.New(providerOpts)
 
 	// Setup a cluster-aware Manager, with the provider to lookup clusters.
-	managerOpts := manager.Options{
+	managerOpts := mcmanager.Options{
 		Metrics: metricsserver.Options{
 			BindAddress: "0", // Disable metrics server
 		},
