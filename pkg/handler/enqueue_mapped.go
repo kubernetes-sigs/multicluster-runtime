@@ -34,3 +34,10 @@ func EnqueueRequestsFromMapFunc(fn handler.MapFunc) EventHandlerFunc {
 func TypedEnqueueRequestsFromMapFunc[object client.Object, request mcreconcile.ClusterAware[request]](fn handler.TypedMapFunc[object, request]) TypedEventHandlerFunc[object, request] {
 	return TypedInjectCluster[object, request](handler.TypedEnqueueRequestsFromMapFunc[object, request](fn))
 }
+
+// TypedEnqueueRequestsFromMapFuncWithClusterPreservation wraps handler.TypedEnqueueRequestsFromMapFunc
+// to work with mcreconcile.Request while preserving the ClusterName field set in the requests.
+// This avoids cluster injection and depends on the mapFunc to set the correct ClusterName in the request.
+func TypedEnqueueRequestsFromMapFuncWithClusterPreservation[object client.Object, request mcreconcile.ClusterAware[request]](fn handler.TypedMapFunc[object, request]) handler.TypedEventHandler[object, request] {
+	return handler.TypedEnqueueRequestsFromMapFunc[object, request](fn)
+}
