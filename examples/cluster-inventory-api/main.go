@@ -33,7 +33,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -92,7 +91,7 @@ func main() {
 
 	// Create a multi-cluster manager attached to the provider.
 	entryLog.Info("Setting up manager")
-	mcMgr, err := mcmanager.New(cfg, provider, manager.Options{
+	mcMgr, err := mcmanager.New(cfg, provider, mcmanager.Options{
 		LeaderElection: false,
 		Metrics: metricsserver.Options{
 			BindAddress: "0", // only one can listen
