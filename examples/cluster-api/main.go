@@ -129,7 +129,7 @@ func main() {
 		return ignoreCanceled(localMgr.Start(ctx))
 	})
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mcMgr))
+		return ignoreCanceled(provider.Start(ctx, mcMgr))
 	})
 	g.Go(func() error {
 		return ignoreCanceled(mcMgr.Start(ctx))

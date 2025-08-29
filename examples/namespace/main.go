@@ -153,7 +153,7 @@ func run(ctx context.Context, log logr.Logger, kubeconfig string) error {
 	// Starting everything.
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
+		return ignoreCanceled(provider.Start(ctx, mgr))
 	})
 	g.Go(func() error {
 		return ignoreCanceled(cl.Start(ctx))

@@ -114,7 +114,7 @@ func main() {
 		return ignoreCanceled(mgr.Start(ctx))
 	})
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
+		return ignoreCanceled(provider.Start(ctx, mgr))
 	})
 	if err := g.Wait(); err != nil {
 		entryLog.Info("error in errgroup: %w", err)
