@@ -44,10 +44,9 @@ export KUBEBUILDER_ASSETS="$(${tmp_bin}/setup-envtest use --use-env -p path "${E
 ${hack_dir}/test-all.sh
 
 header_text "confirming examples compile (via go install)"
-pushd examples/kind; go install ${MOD_OPT} .; popd
-pushd examples/namespace; go install ${MOD_OPT} .; popd
-pushd examples/cluster-api; go install ${MOD_OPT} .; popd
-pushd examples/cluster-inventory-api; go install ${MOD_OPT} .; popd
+for EXAMPLE in $(ls examples); do
+    pushd examples/${EXAMPLE}; go install ${MOD_OPT} .; popd
+done
 
 echo "passed"
 exit 0
