@@ -24,6 +24,9 @@ cd "${REPO_ROOT}"
 header_text "running modules"
 make modules
 
+header_text "running imports"
+make imports
+
 # Only run verify-modules in CI, otherwise updating
 # go module locally (which is a valid operation) causes `make test` to fail.
 if [[ -n ${CI} ]]; then

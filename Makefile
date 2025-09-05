@@ -23,6 +23,7 @@
 
 SHELL:=/usr/bin/env bash
 .DEFAULT_GOAL:=help
+ROOT_DIR=$(abspath .)
 
 #
 # Go.
@@ -52,12 +53,6 @@ TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
 GO_APIDIFF := $(TOOLS_BIN_DIR)/go-apidiff
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
-EXAMPLES_KIND_DIR := $(abspath examples/kind)
-PROVIDERS_KIND_DIR := $(abspath providers/kind)
-EXAMPLES_CLUSTER_API_DIR := $(abspath examples/cluster-api)
-PROVIDERS_CLUSTER_API_DIR := $(abspath providers/cluster-api)
-EXAMPLES_CLUSTER_INVENTORY_API_DIR := $(abspath examples/cluster-inventory-api)
-PROVIDERS_CLUSTER_INVENTORY_API_DIR := $(abspath providers/cluster-inventory-api)
 GO_INSTALL := ./hack/go-install.sh
 
 # The help will print out all targets with their descriptions organized bellow their categories. The categories are represented by `##@` and the target descriptions by `##`.
@@ -111,7 +106,7 @@ GO_MOD_CHECK_DIR := $(abspath ./hack/tools/cmd/gomodcheck)
 GO_MOD_CHECK := $(abspath $(TOOLS_BIN_DIR)/gomodcheck)
 GO_MOD_CHECK_IGNORE := $(abspath .gomodcheck.yaml)
 .PHONY: $(GO_MOD_CHECK)
-$(GO_MOD_CHECK): # Build gomodcheck
+$(GO_MOD_CHECK): # Build gomodcheck.
 	go build -C $(GO_MOD_CHECK_DIR) -o $(GO_MOD_CHECK)
 
 ## --------------------------------------
@@ -119,31 +114,45 @@ $(GO_MOD_CHECK): # Build gomodcheck
 ## --------------------------------------
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT) ## Lint codebase
-	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
-	cd examples/kind; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
-	cd proviers/kind; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
-	cd examples/cluster-api; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
-	cd proviers/cluster-api; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+lint: WHAT ?=
+lint: $(GOLANGCI_LINT) ## Lint codebase.
+	@if [ -n "$(WHAT)" ]; then \
+		$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) $(WHAT); \
+	else \
+	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
+		(cd $$MOD; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)); \
+	  done; \
+	fi
 
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter.
 	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
+
+.PHONY: imports
+imports: WHAT ?=
+imports: $(GOLANGCI_LINT) ## Format module imports.
+	@if [ -n "$(WHAT)" ]; then \
+		$(GOLANGCI_LINT) fmt --enable gci -c $(ROOT_DIR)/.golangci.yml $(WHAT); \
+	else \
+	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
+		(cd $$MOD; $(GOLANGCI_LINT) fmt --enable gci -c $(ROOT_DIR)/.golangci.yml); \
+	  done; \
+	fi
 
 ## --------------------------------------
 ## Generate
 ## --------------------------------------
 
 .PHONY: modules
+modules: WHAT ?=
 modules: ## Runs go mod to ensure modules are up to date.
-	go mod tidy
-	cd $(TOOLS_DIR); go mod tidy
-	cd $(EXAMPLES_KIND_DIR); go mod tidy
-	cd $(PROVIDERS_KIND_DIR); go mod tidy
-	cd $(EXAMPLES_CLUSTER_API_DIR); go mod tidy
-	cd $(PROVIDERS_CLUSTER_API_DIR); go mod tidy
-	cd $(EXAMPLES_CLUSTER_INVENTORY_API_DIR); go mod tidy
-	cd $(PROVIDERS_CLUSTER_INVENTORY_API_DIR); go mod tidy
+	@if [ -n "$(WHAT)" ]; then \
+		(cd $(WHAT); go mod tidy); \
+	else \
+	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
+		(cd $$MOD; go mod tidy); \
+	  done; \
+	fi
 
 ## --------------------------------------
 ## Cleanup / Verification
@@ -159,28 +168,21 @@ clean-bin: ## Remove all generated binaries.
 	rm -rf hack/tools/bin
 
 .PHONY: clean-release
-clean-release: ## Remove the release folder
+clean-release: ## Remove the release folder.
 	rm -rf $(RELEASE_DIR)
 
 .PHONY: verify-modules
-verify-modules: modules $(GO_MOD_CHECK) ## Verify go modules are up to date
-	@if !(git diff --quiet HEAD -- go.sum go.mod $(TOOLS_DIR)/go.mod $(TOOLS_DIR)/go.sum \
-		$(EXAMPLES_KIND_DIR)/go.mod $(EXAMPLES_KIND_DIR)/go.sum \
-		$(PROVIDERS_KIND_DIR)/go.mod $(PROVIDERS_KIND_DIR)/go.sum \
-		$(EXAMPLES_CLUSTER_API_DIR)/go.mod $(EXAMPLES_CLUSTER_API_DIR)/go.sum \
-		$(PROVIDERS_CLUSTER_API_DIR)/go.mod $(PROVIDERS_CLUSTER_API_DIR)/go.sum \
-		$(EXAMPLES_CLUSTER_INVENTORY_API_DIR)/go.mod $(EXAMPLES_CLUSTER_INVENTORY_API_DIR)/go.sum \
-		$(PROVIDERS_CLUSTER_INVENTORY_API_DIR)/go.mod $(PROVIDERS_CLUSTER_INVENTORY_API_DIR)/go.sum \
-	); then \
-		git diff; \
-		echo "go module files are out of date, please run 'make modules'"; exit 1; \
-	fi
+verify-modules: modules $(GO_MOD_CHECK) ## Verify go modules are up to date.
+	  @for MOD in . $(TOOLS_DIR) $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
+		pushd $$MOD >/dev/null; if !(git diff --quiet HEAD -- go.sum go.mod); then echo "[$$MOD] go modules are out of date, please run 'make modules'"; exit 1; fi; popd >/dev/null; \
+	  done; \
+
 	$(GO_MOD_CHECK) $(GO_MOD_CHECK_IGNORE)
 
 APIDIFF_OLD_COMMIT ?= $(shell git rev-parse origin/main)
 
 .PHONY: apidiff
-verify-apidiff: $(GO_APIDIFF) ## Check for API differences
+verify-apidiff: $(GO_APIDIFF) ## Check for API differences.
 	$(GO_APIDIFF) $(APIDIFF_OLD_COMMIT) --print-compatible
 
 ## --------------------------------------
@@ -188,9 +190,9 @@ verify-apidiff: $(GO_APIDIFF) ## Check for API differences
 ## --------------------------------------
 
 
-.PHONY: provider-release
-provider-release: ## Create a commit bumping the provider modules to the latest release tag and tag providers.
-	@./hack/release-providers.sh
+.PHONY: release-commit
+release-commit: ## Create a commit bumping the provider modules to the latest release tag and tag providers.
+	@./hack/release-commit.sh
 
 ## --------------------------------------
 ## Helpers
@@ -198,15 +200,10 @@ provider-release: ## Create a commit bumping the provider modules to the latest 
 
 ##@ helpers:
 
-go-version: ## Print the go version we use to compile our binaries and images
+go-version: ## Print the go version we use to compile our binaries and images.
 	@echo $(GO_VERSION)
 
-WHAT ?=
-imports:
-	@if [ -n "$(WHAT)" ]; then \
-		$(GOLANGCI_LINT) run --enable-only=gci --fix --fast $(WHAT); \
-	else \
-	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
-		(cd $$MOD; $(GOLANGCI_LINT) run --enable-only=gci --fix --fast); \
-	  done; \
-	fi
+list-modules: ## Print the Go modules in this repository for GitHub Actions matrix.
+	@echo -n '['; \
+	git ls-files '**/go.mod' | sed 's,/go.mod,,' | awk 'BEGIN {printf "\"%s\"", "."} NR > 0 {printf ",\"%s\"", $$0}'; \
+	echo ']'
