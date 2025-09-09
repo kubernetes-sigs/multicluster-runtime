@@ -1,11 +1,6 @@
 [![Go Report Card](https://goreportcard.com/badge/sigs.k8s.io/multicluster-runtime)](https://goreportcard.com/report/sigs.k8s.io/multicluster-runtime)
 [![godoc](https://pkg.go.dev/badge/sigs.k8s.io/multicluster-runtime)](https://pkg.go.dev/sigs.k8s.io/multicluster-runtime)
 
-> [!WARNING]
-> multicluster-runtime is **an experiment** to add multi-cluster support on-top of controller-runtime. It is not generally consumable yet. Use at your own risk. Contributions though are highly welcome.
->
-> Related controller-runtime design: https://github.com/kubernetes-sigs/controller-runtime/pull/2746
-
 # multicluster-runtime
 
 <img src="./contrib/logo/logo.png" width="300"/>
