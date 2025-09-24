@@ -129,9 +129,6 @@ func main() {
 		return ignoreCanceled(localMgr.Start(ctx))
 	})
 	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mcMgr))
-	})
-	g.Go(func() error {
 		return ignoreCanceled(mcMgr.Start(ctx))
 	})
 	if err := g.Wait(); err != nil {

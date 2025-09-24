@@ -34,11 +34,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
 var _ multicluster.Provider = &Provider{}
+var _ multicluster.ProviderRunnable = &Provider{}
 
 // New creates a new kind cluster Provider.
 func New() *Provider {
@@ -57,6 +57,8 @@ type index struct {
 
 // Provider is a cluster Provider that works with a local Kind instance.
 type Provider struct {
+	mcAware multicluster.Aware
+
 	opts      []cluster.Option
 	log       logr.Logger
 	lock      sync.RWMutex
@@ -76,8 +78,10 @@ func (p *Provider) Get(ctx context.Context, clusterName string) (cluster.Cluster
 	return nil, multicluster.ErrClusterNotFound
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
+	p.mcAware = mcAware
+
 	p.log.Info("Starting kind cluster provider")
 
 	provider := kind.NewProvider()
@@ -152,15 +156,13 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			p.log.Info("Added new cluster", "cluster", clusterName)
 
 			// engage manager
-			if mgr != nil {
-				if err := mgr.Engage(clusterCtx, clusterName, cl); err != nil {
-					log.Error(err, "failed to engage manager")
-					p.lock.Lock()
-					delete(p.clusters, clusterName)
-					delete(p.cancelFns, clusterName)
-					p.lock.Unlock()
-					return false, nil
-				}
+			if err := p.mcAware.Engage(clusterCtx, clusterName, cl); err != nil {
+				log.Error(err, "failed to engage manager")
+				p.lock.Lock()
+				delete(p.clusters, clusterName)
+				delete(p.cancelFns, clusterName)
+				p.lock.Unlock()
+				return false, nil
 			}
 		}
 
