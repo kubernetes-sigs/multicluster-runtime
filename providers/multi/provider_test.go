@@ -99,11 +99,11 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			// Without waiting for the cache sync adding the provider
 			// will fail because the cache informer is not ready yet.
 			cloud1cluster.GetCache().WaitForCacheSync(ctx)
-			err := provider.AddProvider(ctx, "cloud1", cloud1provider, cloud1provider.Run)
+			err := provider.AddProvider(ctx, "cloud1", cloud1provider, cloud1provider.Start)
 			Expect(err).NotTo(HaveOccurred())
 
 			cloud2cluster.GetCache().WaitForCacheSync(ctx)
-			err = provider.AddProvider(ctx, "cloud2", cloud2provider, cloud2provider.Run)
+			err = provider.AddProvider(ctx, "cloud2", cloud2provider, cloud2provider.Start)
 			Expect(err).NotTo(HaveOccurred())
 		})
 

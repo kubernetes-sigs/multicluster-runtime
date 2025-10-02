@@ -39,11 +39,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
 var _ multicluster.Provider = &Provider{}
+var _ multicluster.ProviderRunnable = &Provider{}
 
 // Options are the options for the Cluster-API cluster Provider.
 type Options struct {
@@ -109,7 +109,7 @@ type Provider struct {
 	client client.Client
 
 	lock      sync.Mutex
-	mcMgr     mcmanager.Manager
+	mcAware   multicluster.Aware
 	clusters  map[string]cluster.Cluster
 	cancelFns map[string]context.CancelFunc
 	indexers  []index
@@ -126,13 +126,13 @@ func (p *Provider) Get(_ context.Context, clusterName string) (cluster.Cluster, 
 	return nil, multicluster.ErrClusterNotFound
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	p.log.Info("Starting Cluster-API cluster provider")
-
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
 	p.lock.Lock()
-	p.mcMgr = mgr
+	p.mcAware = mcAware
 	p.lock.Unlock()
+
+	p.log.Info("Starting Cluster-API cluster provider")
 
 	<-ctx.Done()
 
@@ -171,7 +171,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	// TODO(sttts): do tighter logging.
 
 	// provider already started?
-	if p.mcMgr == nil {
+	if p.mcAware == nil {
 		return reconcile.Result{RequeueAfter: time.Second * 2}, nil
 	}
 
@@ -222,7 +222,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	p.log.Info("Added new cluster")
 
 	// engage manager.
-	if err := p.mcMgr.Engage(clusterCtx, key, cl); err != nil {
+	if err := p.mcAware.Engage(clusterCtx, key, cl); err != nil {
 		log.Error(err, "failed to engage manager")
 		delete(p.clusters, key)
 		delete(p.cancelFns, key)

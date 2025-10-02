@@ -33,11 +33,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
 var _ multicluster.Provider = &Provider{}
+var _ multicluster.ProviderRunnable = &Provider{}
 
 // Options defines the options for the file-based cluster provider.
 type Options struct {
@@ -142,9 +142,9 @@ type Provider struct {
 	clusterCancel map[string]func()
 }
 
-// Run starts the provider and updates the clusters and is blocking.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	if err := p.run(ctx, mgr); err != nil {
+// Start starts the provider and updates the clusters and is blocking.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
+	if err := p.run(ctx, mcAware); err != nil {
 		return fmt.Errorf("initial update failed: %w", err)
 	}
 
@@ -181,7 +181,7 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 			// would also require to track which cluster belongs to
 			// which file.
 			// Instead clusters are just updated from all files.
-			if err := p.run(ctx, mgr); err != nil {
+			if err := p.run(ctx, mcAware); err != nil {
 				p.log.Error(err, "failed to update clusters after file change")
 			}
 		case err, ok := <-watcher.Errors:
@@ -194,11 +194,11 @@ func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
 }
 
 // RunOnce performs a single update of the clusters.
-func (p *Provider) RunOnce(ctx context.Context, mgr mcmanager.Manager) error {
-	return p.run(ctx, mgr)
+func (p *Provider) RunOnce(ctx context.Context, mcAware multicluster.Aware) error {
+	return p.run(ctx, mcAware)
 }
 
-func (p *Provider) addCluster(ctx context.Context, mgr mcmanager.Manager, name string, cl cluster.Cluster) {
+func (p *Provider) addCluster(ctx context.Context, mcAware multicluster.Aware, name string, cl cluster.Cluster) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	p.clustersLock.Lock()
@@ -213,8 +213,8 @@ func (p *Provider) addCluster(ctx context.Context, mgr mcmanager.Manager, name s
 		p.removeCluster(name)
 	}()
 
-	if mgr != nil {
-		if err := mgr.Engage(ctx, name, cl); err != nil {
+	if mcAware != nil {
+		if err := mcAware.Engage(ctx, name, cl); err != nil {
 			cancel()
 			p.log.Error(err, "failed to engage cluster", "name", name)
 		}
@@ -232,7 +232,7 @@ func (p *Provider) removeCluster(name string) {
 	}
 }
 
-func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
+func (p *Provider) run(ctx context.Context, mcAware multicluster.Aware) error {
 	loadedClusters, err := p.loadClusters()
 	if err != nil {
 		return fmt.Errorf("failed to load clusters: %w", err)
@@ -247,12 +247,12 @@ func (p *Provider) run(ctx context.Context, mgr mcmanager.Manager) error {
 			if !cmp.Equal(existingCluster.GetConfig(), cl.GetConfig()) {
 				p.log.Info("updating cluster", "name", name)
 				p.removeCluster(name)
-				p.addCluster(ctx, mgr, name, cl)
+				p.addCluster(ctx, mcAware, name, cl)
 			}
 			continue
 		}
 		p.log.Info("adding cluster", "name", name)
-		p.addCluster(ctx, mgr, name, cl)
+		p.addCluster(ctx, mcAware, name, cl)
 	}
 
 	// delete clusters that are no longer present

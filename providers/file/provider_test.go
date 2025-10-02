@@ -19,7 +19,6 @@ package file
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"os"
 	"path/filepath"
 
@@ -35,7 +34,7 @@ import (
 
 var _ = Describe("Provider File", Ordered, func() {
 	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 
 	var discoverDir string
 	var kubeconfigDir string
@@ -54,12 +53,6 @@ var _ = Describe("Provider File", Ordered, func() {
 				KubeconfigDirs:  []string{discoverDir},
 			})
 			Expect(err).NotTo(HaveOccurred())
-		})
-
-		By("Starting the provider", func() {
-			g.Go(func() error {
-				return ignoreCanceled(provider.Run(ctx, nil))
-			})
 		})
 
 		By("Creating a temporary directory for discovery", func() {
@@ -138,13 +131,6 @@ var _ = Describe("Provider File", Ordered, func() {
 		})
 	})
 })
-
-func ignoreCanceled(err error) error {
-	if errors.Is(err, context.Canceled) {
-		return nil
-	}
-	return err
-}
 
 // randomKubeconfig generates a kubeconfig file with n contexts and
 // writes it to the specified path.

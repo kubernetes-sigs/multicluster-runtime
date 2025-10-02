@@ -22,11 +22,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
-	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
 var _ multicluster.Provider = &Provider{}
+var _ multicluster.ProviderRunnable = &Provider{}
 
 // Provider is a provider that engages the passed cluster.
 type Provider struct {
@@ -43,9 +43,9 @@ func New(name string, cl cluster.Cluster) *Provider {
 	}
 }
 
-// Run starts the provider and blocks.
-func (p *Provider) Run(ctx context.Context, mgr mcmanager.Manager) error {
-	if err := mgr.Engage(ctx, p.name, p.cl); err != nil {
+// Start starts the provider and blocks.
+func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error {
+	if err := mcAware.Engage(ctx, p.name, p.cl); err != nil {
 		return err
 	}
 	<-ctx.Done()

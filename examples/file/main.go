@@ -22,8 +22,6 @@ import (
 	"flag"
 	"strings"
 
-	"golang.org/x/sync/errgroup"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -109,15 +107,8 @@ func main() {
 		return
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		return ignoreCanceled(mgr.Start(ctx))
-	})
-	g.Go(func() error {
-		return ignoreCanceled(provider.Run(ctx, mgr))
-	})
-	if err := g.Wait(); err != nil {
-		entryLog.Info("error in errgroup: %w", err)
+	if err := mgr.Start(ctx); ignoreCanceled(err) != nil {
+		entryLog.Error(err, "unable to start")
 		return
 	}
 }

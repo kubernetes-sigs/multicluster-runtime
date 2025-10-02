@@ -61,3 +61,17 @@ type Provider interface {
 	// clusters, current and future.
 	IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error
 }
+
+// ProviderRunnable implements a `Start` method similar to manager.Runnable.
+// The main difference to a normal Runnable is that a provider needs an Aware passed to engage clusters it discovers.
+// Start is expected to block until completion.
+//
+// Providers implementing this interface are automatically started by the multicluster manager
+// when the manager starts. You should NOT manually call Start() on providers that implement
+// this interface - the manager will handle this automatically.
+type ProviderRunnable interface {
+	// Start runs the provider. Implementation of this method should block.
+	// If you need to pass in manager, it is recommended to implement SetupWithManager(mgr mcmanager.Manager) error method on individual providers.
+	// Even if a provider gets a manager through e.g. `SetupWithManager` the `Aware` passed to this method must be used to engage clusters.
+	Start(context.Context, Aware) error
+}

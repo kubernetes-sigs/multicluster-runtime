@@ -93,7 +93,7 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 // startFunc should block for as long as the provider is running,
 // If startFunc returns an error the provider is removed and the error
 // is returned.
-func (p *Provider) AddProvider(ctx context.Context, prefix string, provider multicluster.Provider, startFunc func(context.Context, mctrl.Manager) error) error {
+func (p *Provider) AddProvider(ctx context.Context, prefix string, provider multicluster.Provider, startFunc func(context.Context, multicluster.Aware) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 
 	p.providerLock.Lock()
