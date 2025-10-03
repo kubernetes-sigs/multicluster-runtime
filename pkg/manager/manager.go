@@ -112,7 +112,9 @@ type Manager interface {
 }
 
 // Options are the arguments for creating a new Manager.
-type Options = manager.Options
+type Options struct {
+	manager.Options
+}
 
 // Runnable allows a component to be started.
 // It's very important that Start blocks until
@@ -135,7 +137,7 @@ type mcManager struct {
 // discover and manage clusters. With a provider set to nil, the manager will
 // behave like a regular controller-runtime manager.
 func New(config *rest.Config, provider multicluster.Provider, opts Options) (Manager, error) {
-	mgr, err := manager.New(config, opts)
+	mgr, err := manager.New(config, opts.Options)
 	if err != nil {
 		return nil, err
 	}
