@@ -47,6 +47,7 @@ type Provider struct {
 
 	log logr.Logger
 
+	once            sync.Once
 	lock            sync.RWMutex
 	indexers        []index
 	prefixCh        chan string
@@ -85,6 +86,14 @@ func New(opts Options) *Provider {
 // multicluster.ProviderRunnable, even those added after Start() has
 // been called.
 func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
+	var err error
+	p.once.Do(func() {
+		err = p.start(ctx, aware)
+	})
+	return err
+}
+
+func (p *Provider) start(ctx context.Context, aware multicluster.Aware) error {
 	p.log.Info("starting multi provider")
 
 	p.lock.Lock()
