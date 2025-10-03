@@ -50,6 +50,8 @@ var _ = Describe("Provider Multi", Ordered, func() {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
+	testTimeout := "10s"
+
 	var provider *Provider
 	var mgr mcmanager.Manager
 	var cloud1client, cloud2client client.Client
@@ -91,19 +93,10 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			var err error
 			mgr, err = mcmanager.New(localCfg, provider, manager.Options{})
 			Expect(err).NotTo(HaveOccurred())
-
-			provider.SetManager(mgr)
 		})
 
-		By("Adding the namespace providers to the multi provider", func() {
-			// Without waiting for the cache sync adding the provider
-			// will fail because the cache informer is not ready yet.
-			cloud1cluster.GetCache().WaitForCacheSync(ctx)
-			err := provider.AddProvider(ctx, "cloud1", cloud1provider, cloud1provider.Start)
-			Expect(err).NotTo(HaveOccurred())
-
-			cloud2cluster.GetCache().WaitForCacheSync(ctx)
-			err = provider.AddProvider(ctx, "cloud2", cloud2provider, cloud2provider.Start)
+		By("Adding the first namespace provider before starting the manager", func() {
+			err := provider.AddProvider("cloud1", cloud1provider)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -142,13 +135,30 @@ var _ = Describe("Provider Multi", Ordered, func() {
 					},
 				))
 			Expect(err).NotTo(HaveOccurred())
+		})
 
-			By("Adding an index to the provider clusters", func() {
-				err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, "type", func(obj client.Object) []string {
-					return []string{obj.GetLabels()["type"]}
-				})
-				Expect(err).NotTo(HaveOccurred())
-			})
+		By("Filling the providers with data", func() {
+			// cluster zoo exists in cloud1
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "zoo"}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "elephant", Labels: map[string]string{"type": "animal"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "lion", Labels: map[string]string{"type": "animal"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "keeper", Labels: map[string]string{"type": "human"}}})))
+
+			// cluster jungle exists in cloud2
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "jungle"}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "monkey", Labels: map[string]string{"type": "animal"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "tree", Labels: map[string]string{"type": "thing"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "tarzan", Labels: map[string]string{"type": "human"}}})))
+
+			// cluster island exists in both clouds
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "island"}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "bird", Labels: map[string]string{"type": "animal"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "stone", Labels: map[string]string{"type": "thing"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "crusoe", Labels: map[string]string{"type": "human"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "island"}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "bird", Labels: map[string]string{"type": "animal"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "stone", Labels: map[string]string{"type": "thing"}}})))
+			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "selkirk", Labels: map[string]string{"type": "human"}}})))
 		})
 
 		By("Starting the manager", func() {
@@ -156,41 +166,29 @@ var _ = Describe("Provider Multi", Ordered, func() {
 				return ignoreCanceled(mgr.Start(ctx))
 			})
 		})
-	})
 
-	BeforeAll(func() {
-		// cluster zoo exists in cloud1
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "zoo"}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "elephant", Labels: map[string]string{"type": "animal"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "lion", Labels: map[string]string{"type": "animal"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "zoo", Name: "keeper", Labels: map[string]string{"type": "human"}}})))
+		By("Adding an index before adding the last provider", func() {
+			err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, "type", func(obj client.Object) []string {
+				return []string{obj.GetLabels()["type"]}
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
 
-		// cluster jungle exists in cloud2
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "jungle"}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "monkey", Labels: map[string]string{"type": "animal"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "tree", Labels: map[string]string{"type": "thing"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "tarzan", Labels: map[string]string{"type": "human"}}})))
-
-		// cluster island exists in both clouds
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "island"}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "bird", Labels: map[string]string{"type": "animal"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "stone", Labels: map[string]string{"type": "thing"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud1client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "crusoe", Labels: map[string]string{"type": "human"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "island"}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "bird", Labels: map[string]string{"type": "animal"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "stone", Labels: map[string]string{"type": "thing"}}})))
-		runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "selkirk", Labels: map[string]string{"type": "human"}}})))
+		By("Adding the second namespace provider after starting the manager", func() {
+			err := provider.AddProvider("cloud2", cloud2provider)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	It("runs the reconciler for existing objects", func(ctx context.Context) {
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			lion := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "lion"}, lion)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return lion.Data["stomach"]
-		}, "10s").Should(Equal("food"))
+		}, testTimeout).Should(Equal("food"))
 	})
 
 	It("runs the reconciler for new objects", func(ctx context.Context) {
@@ -199,14 +197,14 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			tiger := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "tiger"}, tiger)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return tiger.Data["stomach"]
-		}, "10s").Should(Equal("food"))
+		}, testTimeout).Should(Equal("food"))
 	})
 
 	It("runs the reconciler for updated objects", func(ctx context.Context) {
@@ -224,25 +222,25 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		rv, err := strconv.ParseInt(updated.ResourceVersion, 10, 64)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() int64 {
+		Eventually(func(g Gomega) int64 {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			elephant := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			rv, err := strconv.ParseInt(elephant.ResourceVersion, 10, 64)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return rv
-		}, "10s").Should(BeNumerically(">=", rv))
+		}, testTimeout).Should(BeNumerically(">=", rv))
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			elephant := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return elephant.Data["stomach"]
-		}, "10s").Should(Equal("food"))
+		}, testTimeout).Should(Equal("food"))
 	})
 
 	It("queries island on cloud1 via a multi-cluster index", func() {
