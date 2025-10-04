@@ -19,6 +19,9 @@ package file
 import (
 	"testing"
 
+	"k8s.io/client-go/rest"
+
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -32,11 +35,16 @@ func TestBuilder(t *testing.T) {
 	RunSpecs(t, "File Provider Suite")
 }
 
+var localEnv *envtest.Environment
+var localCfg *rest.Config
+
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	// The file provider is designed to work with local files and
-	// directories, so we don't need envtest.
+	var err error
+	localEnv = &envtest.Environment{}
+	localCfg, err = localEnv.Start()
+	Expect(err).NotTo(HaveOccurred())
 
 	// Prevent the metrics listener being created
 	metricsserver.DefaultBindAddress = "0"
