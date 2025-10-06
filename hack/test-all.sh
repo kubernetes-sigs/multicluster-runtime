@@ -33,10 +33,15 @@ tmp_bin=/tmp/cr-tests-bin
 )
 export KUBEBUILDER_ASSETS="$(${tmp_bin}/setup-envtest use --use-env -p path "${ENVTEST_K8S_VERSION}")"
 
+modules=( . $(git ls-files '**/go.mod' | sed 's,/go.mod,,') )
+if [[ -n "$WHAT" ]]; then
+    modules=( "$WHAT" )
+fi
+
 result=0
-go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} \
-  && ( cd providers/cluster-inventory-api; go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} ) \
-  || result=$?
+for module in "${modules[@]}"; do
+    ( cd "$module" ; go test -v -race ${P_FLAG} ${MOD_OPT} ./... --ginkgo.fail-fast ${GINKGO_ARGS} ) || result=$?
+done
 
 if [[ -n ${ARTIFACTS:-} ]]; then
   mkdir -p ${ARTIFACTS}
