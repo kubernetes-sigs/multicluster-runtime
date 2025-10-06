@@ -56,7 +56,7 @@ func TypedKind[object client.Object, request mcreconcile.ClusterAware[request]](
 		obj:        obj,
 		handler:    handler,
 		predicates: predicates,
-		project:    func(_ cluster.Cluster, o object) (object, error) { return o, nil },
+		project:    func(_ cluster.Cluster, obj object) (object, error) { return obj, nil },
 		resync:     0, // no periodic resync by default
 	}
 }
