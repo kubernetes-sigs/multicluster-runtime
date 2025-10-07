@@ -86,14 +86,13 @@ func New(opts Options) *Provider {
 // multicluster.ProviderRunnable, even those added after Start() has
 // been called.
 func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
-	var err error
 	p.once.Do(func() {
-		err = p.start(ctx, aware)
+		p.start(ctx, aware)
 	})
-	return err
+	return nil
 }
 
-func (p *Provider) start(ctx context.Context, aware multicluster.Aware) error {
+func (p *Provider) start(ctx context.Context, aware multicluster.Aware) {
 	p.log.Info("starting multi provider")
 
 	p.lock.Lock()
@@ -108,7 +107,7 @@ func (p *Provider) start(ctx context.Context, aware multicluster.Aware) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case prefix := <-p.prefixCh:
 			p.startProvider(ctx, prefix, aware)
 		}
