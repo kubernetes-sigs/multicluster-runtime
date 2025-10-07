@@ -82,9 +82,11 @@ func main() {
 	// Create a multi-cluster manager attached to the provider.
 	entryLog.Info("Setting up local manager")
 	mcMgr, err := mcmanager.New(cfg, provider, mcmanager.Options{
-		LeaderElection: false, // TODO(sttts): how to sync that with the upper manager?
-		Metrics: metricsserver.Options{
-			BindAddress: "0", // only one can listen
+		Options: manager.Options{
+			LeaderElection: false, // TODO(sttts): how to sync that with the upper manager?
+			Metrics: metricsserver.Options{
+				BindAddress: "0", // only one can listen
+			},
 		},
 	})
 	if err != nil {
