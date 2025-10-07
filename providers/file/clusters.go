@@ -27,9 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
-type clusters map[string]cluster.Cluster
-
-func (p *Provider) loadClusters() (clusters, error) {
+func (p *Provider) loadClusters() (map[string]cluster.Cluster, error) {
 	filepaths, err := p.collectPaths()
 	if err != nil {
 		return nil, err
@@ -117,7 +115,7 @@ func readFile(filepath string) (map[string]*rest.Config, error) {
 	return ret, nil
 }
 
-func (p *Provider) fromContexts(kubeCtxs map[string]*rest.Config) clusters {
+func (p *Provider) fromContexts(kubeCtxs map[string]*rest.Config) map[string]cluster.Cluster {
 	c := make(map[string]cluster.Cluster, len(kubeCtxs))
 
 	for name, kubeCtx := range kubeCtxs {

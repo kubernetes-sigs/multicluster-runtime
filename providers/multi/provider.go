@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -86,29 +87,28 @@ func New(opts Options) *Provider {
 // multicluster.ProviderRunnable, even those added after Start() has
 // been called.
 func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
-	var err error
 	p.once.Do(func() {
-		err = p.start(ctx, aware)
+		p.start(ctx, aware)
 	})
-	return err
+	return nil
 }
 
-func (p *Provider) start(ctx context.Context, aware multicluster.Aware) error {
+func (p *Provider) start(ctx context.Context, aware multicluster.Aware) {
 	p.log.Info("starting multi provider")
 
 	p.lock.Lock()
 	p.prefixCh = make(chan string, p.opts.ChannelSize)
-	prefixes := maps.Keys(p.providers)
+	prefixes := slices.Collect(maps.Keys(p.providers))
 	p.lock.Unlock()
 
-	for prefix := range prefixes {
+	for _, prefix := range prefixes {
 		p.startProvider(ctx, prefix, aware)
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case prefix := <-p.prefixCh:
 			p.startProvider(ctx, prefix, aware)
 		}

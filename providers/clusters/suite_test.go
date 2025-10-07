@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package multi
+package clusters
 
 import (
 	"testing"
@@ -32,37 +32,18 @@ import (
 
 func TestBuilder(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Multi Provider Suite")
+	RunSpecs(t, "Clusters Provider Suite")
 }
-
-// The operator runs in a local cluster and embeds two other providers
-// for cloud providers. The cloud providers are simulated by using the
-// namespace provider with two other clusters.
 
 var localEnv *envtest.Environment
 var localCfg *rest.Config
-
-var cloud1 *envtest.Environment
-var cloud1cfg *rest.Config
-
-var cloud2 *envtest.Environment
-var cloud2cfg *rest.Config
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	var err error
-
 	localEnv = &envtest.Environment{}
 	localCfg, err = localEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-
-	cloud1 = &envtest.Environment{}
-	cloud1cfg, err = cloud1.Start()
-	Expect(err).NotTo(HaveOccurred())
-
-	cloud2 = &envtest.Environment{}
-	cloud2cfg, err = cloud2.Start()
 	Expect(err).NotTo(HaveOccurred())
 
 	// Prevent the metrics listener being created
@@ -73,15 +54,5 @@ var _ = AfterSuite(func() {
 	if localEnv != nil {
 		Expect(localEnv.Stop()).To(Succeed())
 	}
-
-	if cloud1 != nil {
-		Expect(cloud1.Stop()).To(Succeed())
-	}
-
-	if cloud2 != nil {
-		Expect(cloud2.Stop()).To(Succeed())
-	}
-
-	// Put the DefaultBindAddress back
 	metricsserver.DefaultBindAddress = ":8080"
 })
