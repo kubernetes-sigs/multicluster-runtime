@@ -19,6 +19,7 @@ package file
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -28,18 +29,28 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
+func ignoreCanceled(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
+}
+
 var _ = Describe("Provider File", Ordered, func() {
 	ctx, cancel := context.WithCancel(context.Background())
-	g, _ := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 
 	var discoverDir string
 	var kubeconfigDir string
 	var kubeconfigPath string
 	var provider *Provider
+	var manager mcmanager.Manager
 
 	BeforeAll(func() {
 		discoverDir = GinkgoT().TempDir()
@@ -55,6 +66,18 @@ var _ = Describe("Provider File", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		By("Creating a new manager", func() {
+			var err error
+			manager, err = mcmanager.New(localCfg, provider, mcmanager.Options{})
+			Expect(err).NotTo(HaveOccurred(), "Failed to create manager")
+		})
+
+		By("Starting the manager", func() {
+			g.Go(func() error {
+				return ignoreCanceled(manager.Start(ctx))
+			})
+		})
+
 		By("Creating a temporary directory for discovery", func() {
 			err := os.MkdirAll(discoverDir, 0755)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create discovery directory")
@@ -64,7 +87,6 @@ var _ = Describe("Provider File", Ordered, func() {
 			err := os.MkdirAll(kubeconfigDir, 0755)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create kubeconfig file")
 		})
-
 	})
 
 	It("should not have any clusters initially", func(ctx context.Context) {
@@ -124,10 +146,10 @@ var _ = Describe("Provider File", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		By("Stopping the provider", func() {
+		By("Stopping the manager", func() {
 			cancel()
 			err := g.Wait()
-			Expect(err).To(Succeed(), "Expected provider to stop without error")
+			Expect(err).To(Succeed(), "Expected manager to stop without error")
 		})
 	})
 })
@@ -146,7 +168,7 @@ func randomKubeconfig(n int, path string) ([]string, error) {
 		for !ok {
 			contextName, ok = randomKubeconfigContent(filler, cfg)
 		}
-		contextNames[i] = contextName
+		contextNames[i] = path + "+" + contextName
 	}
 
 	if err := clientcmd.WriteToFile(*cfg, path); err != nil {
