@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 
@@ -97,10 +98,10 @@ func (p *Provider) start(ctx context.Context, aware multicluster.Aware) {
 
 	p.lock.Lock()
 	p.prefixCh = make(chan string, p.opts.ChannelSize)
-	prefixes := maps.Keys(p.providers)
+	prefixes := slices.Collect(maps.Keys(p.providers))
 	p.lock.Unlock()
 
-	for prefix := range prefixes {
+	for _, prefix := range prefixes {
 		p.startProvider(ctx, prefix, aware)
 	}
 

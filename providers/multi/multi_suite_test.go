@@ -32,7 +32,7 @@ import (
 
 func TestBuilder(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Namespace Provider Suite")
+	RunSpecs(t, "Multi Provider Suite")
 }
 
 // The operator runs in a local cluster and embeds two other providers
