@@ -30,6 +30,9 @@ type Aware interface {
 	// The given context is tied to the Cluster's lifecycle and will be cancelled when the
 	// Cluster is removed or an error occurs.
 	//
+	// Engage is a no-op if the passed cluster is equal to the existing, already
+	// engaged cluster (equal means interface equality, i.e. the same instance).
+	//
 	// Implementers should return an error if they cannot start operations for the given Cluster,
 	// and should ensure this operation is re-entrant and non-blocking.
 	//
