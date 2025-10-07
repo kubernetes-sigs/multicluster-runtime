@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sharded-namespace
+  namespace: mcr-demo
+spec:
+  serviceName: sharded-namespace
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sharded-namespace
+  template:
+    metadata:
+      labels:
+        app: sharded-namespace
+    spec:
+      serviceAccountName: mcr-demo
+      containers:
+      - name: app
+        image: mcr-namespace:dev # change to your image name
+        imagePullPolicy: IfNotPresent
+        # No env needed; hostname == pod name → unique peer ID automatically
