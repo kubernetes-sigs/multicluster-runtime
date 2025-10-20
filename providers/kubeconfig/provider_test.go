@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -120,8 +121,10 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		By("Setting up the cluster-aware manager, with the provider to lookup clusters", func() {
 			var err error
 			mgr, err = mcmanager.New(localCfg, provider, mcmanager.Options{
-				Metrics: metricsserver.Options{
-					BindAddress: "0",
+				Options: manager.Options{
+					Metrics: metricsserver.Options{
+						BindAddress: "0",
+					},
 				},
 			})
 			Expect(err).NotTo(HaveOccurred())
