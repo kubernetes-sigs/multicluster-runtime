@@ -183,12 +183,12 @@ var _ = Describe("Provider Multi", Ordered, func() {
 	})
 
 	It("runs the reconciler for existing objects", func(ctx context.Context) {
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			lion := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "lion"}, lion)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return lion.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -199,12 +199,12 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			tiger := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "tiger"}, tiger)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return tiger.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -224,23 +224,23 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		rv, err := strconv.ParseInt(updated.ResourceVersion, 10, 64)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() int64 {
+		Eventually(func(g Gomega) int64 {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			elephant := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			rv, err := strconv.ParseInt(elephant.ResourceVersion, 10, 64)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return rv
 		}, "10s").Should(BeNumerically(">=", rv))
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			cl, err := mgr.GetCluster(ctx, "cloud1#zoo")
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			elephant := &corev1.ConfigMap{}
 			err = cl.GetClient().Get(ctx, client.ObjectKey{Namespace: "default", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return elephant.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
