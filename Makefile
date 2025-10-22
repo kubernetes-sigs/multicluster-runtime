@@ -28,7 +28,7 @@ ROOT_DIR=$(abspath .)
 #
 # Go.
 #
-GO_VERSION ?= 1.24.2
+GO_VERSION ?= 1.24.9
 
 # Use GOPROXY environment variable if set
 GOPROXY := $(shell go env GOPROXY)
