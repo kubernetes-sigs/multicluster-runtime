@@ -12,7 +12,7 @@ require (
 	gopkg.in/fsnotify.v1 v1.4.7
 	k8s.io/client-go v0.34.0
 	sigs.k8s.io/controller-runtime v0.22.0
-	sigs.k8s.io/multicluster-runtime v0.21.0-alpha.9
+	sigs.k8s.io/multicluster-runtime v0.22.0-beta.0
 	sigs.k8s.io/randfill v1.0.0
 )
 
