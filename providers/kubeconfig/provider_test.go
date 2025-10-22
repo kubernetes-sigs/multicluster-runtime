@@ -209,10 +209,10 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 	})
 
 	It("runs the reconciler for existing objects", func(ctx context.Context) {
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			lion := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "lion"}, lion)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return lion.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -223,10 +223,10 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			tiger := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "tiger"}, tiger)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return tiger.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -246,19 +246,19 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		rv, err := strconv.ParseInt(updated.ResourceVersion, 10, 64)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() int64 {
+		Eventually(func(g Gomega) int64 {
 			elephant := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			rv, err := strconv.ParseInt(elephant.ResourceVersion, 10, 64)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return rv
 		}, "10s").Should(BeNumerically(">=", rv))
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			elephant := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "elephant"}, elephant)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return elephant.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -292,10 +292,10 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		err = jungleCli.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "dog", Labels: map[string]string{"type": "animal"}}})
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			dog := &corev1.ConfigMap{}
 			err := jungleCli.Get(ctx, client.ObjectKey{Namespace: "jungle", Name: "dog"}, dog)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return dog.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -314,10 +314,10 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		err = jungleCli.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "jungle", Name: "leopard", Labels: map[string]string{"type": "animal"}}})
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() string {
+		Eventually(func(g Gomega) string {
 			leopard := &corev1.ConfigMap{}
 			err := jungleCli.Get(ctx, client.ObjectKey{Namespace: "jungle", Name: "leopard"}, leopard)
-			Expect(err).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
 			return leopard.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
