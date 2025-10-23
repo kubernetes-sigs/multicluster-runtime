@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -202,7 +201,7 @@ func (p *Provider) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result
 	// Extract and validate kubeconfig data
 	kubeconfigData, ok := secret.Data[p.opts.KubeconfigSecretKey]
 	if !ok || len(kubeconfigData) == 0 {
-		log.Error(errors.New("secret does not contain kubeconfig data, skipping"), "key", p.opts.KubeconfigSecretKey)
+		log.Error(nil, "Secret does not contain kubeconfig data, skipping", "key", p.opts.KubeconfigSecretKey)
 		return ctrl.Result{}, nil
 	}
 
