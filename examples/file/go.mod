@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	sigs.k8s.io/multicluster-runtime v0.21.0-alpha.9
+	sigs.k8s.io/multicluster-runtime v0.22.0-beta.0
 	sigs.k8s.io/multicluster-runtime/providers/file v0.0.0-00010101000000-000000000000
 )
 
