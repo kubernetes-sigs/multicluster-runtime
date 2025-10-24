@@ -12,7 +12,7 @@ require (
 	k8s.io/apimachinery v0.34.0
 	sigs.k8s.io/controller-runtime v0.22.0
 	sigs.k8s.io/multicluster-runtime v0.22.0-beta.0
-	sigs.k8s.io/multicluster-runtime/providers/kind v0.20.4-alpha.6
+	sigs.k8s.io/multicluster-runtime/providers/kind v0.22.0-beta.0
 )
 
 require (
