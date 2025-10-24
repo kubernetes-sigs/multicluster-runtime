@@ -21,8 +21,9 @@ set -o pipefail
 hack_dir=$(dirname ${BASH_SOURCE})
 source ${hack_dir}/common.sh
 
-tmp_root=/tmp
+tmp_root=${TMPDIR:-/tmp}
 kb_root_dir=$tmp_root/kubebuilder
+examples_install_dir="${tmp_root}/mcr-examples"
 
 export GOTOOLCHAIN="go$(make go-version)"
 
@@ -33,9 +34,11 @@ ${hack_dir}/verify.sh
 ${hack_dir}/test-all.sh
 
 header_text "confirming examples compile (via go install)"
+mkdir -p "$examples_install_dir"
 for EXAMPLE in $(ls examples); do
-    pushd examples/${EXAMPLE}; go install ${MOD_OPT} .; popd
+    pushd examples/${EXAMPLE}; GOBIN="$examples_install_dir" go install ${MOD_OPT} .; popd
 done
+rm -r "$examples_install_dir"
 
 echo "passed"
 exit 0
