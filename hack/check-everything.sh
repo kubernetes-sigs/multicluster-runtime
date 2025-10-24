@@ -21,7 +21,7 @@ set -o pipefail
 hack_dir=$(dirname ${BASH_SOURCE})
 source ${hack_dir}/common.sh
 
-tmp_root=/tmp
+tmp_root=${TMPDIR:-/tmp}
 kb_root_dir=$tmp_root/kubebuilder
 
 export GOTOOLCHAIN="go$(make go-version)"
