@@ -31,7 +31,11 @@ find "providers" "examples" -name go.mod | while read -r GOMOD; do
     fi
 
     pushd "${module}"
-    go get "sigs.k8s.io/multicluster-runtime@${TAG}"
+    go list -m sigs.k8s.io/multicluster-runtime/... | while read -r dep rest; do
+        [[ "$dep" == "$(go list)" ]] && continue
+        echo "Updating ${dep} to ${TAG} in ${module} ..."
+        go get "${dep}@${TAG}"
+    done
     go mod tidy
     popd
 done
