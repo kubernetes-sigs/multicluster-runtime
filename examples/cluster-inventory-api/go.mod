@@ -14,7 +14,7 @@ require (
 	sigs.k8s.io/cluster-inventory-api v0.0.0-20250702132726-0f613c6275a5
 	sigs.k8s.io/controller-runtime v0.22.0
 	sigs.k8s.io/multicluster-runtime v0.22.0-beta.0
-	sigs.k8s.io/multicluster-runtime/providers/cluster-inventory-api v0.0.0-00010101000000-000000000000
+	sigs.k8s.io/multicluster-runtime/providers/cluster-inventory-api v0.22.0-beta.0
 )
 
 require (

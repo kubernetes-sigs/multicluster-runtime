@@ -15,7 +15,7 @@ require (
 	sigs.k8s.io/cluster-api v1.9.4
 	sigs.k8s.io/controller-runtime v0.22.0
 	sigs.k8s.io/multicluster-runtime v0.22.0-beta.0
-	sigs.k8s.io/multicluster-runtime/providers/cluster-api v0.20.4-alpha.6
+	sigs.k8s.io/multicluster-runtime/providers/cluster-api v0.22.0-beta.0
 )
 
 require (
