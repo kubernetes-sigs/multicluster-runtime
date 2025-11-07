@@ -286,6 +286,16 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 		}
 	}()
 
+	log.Info("Successfully added cluster")
+
+	// Engage cluster so that the manager can start operating on the cluster
+	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
+		cancel()
+		return fmt.Errorf("failed to engage manager: %w", err)
+	}
+
+	log.Info("Successfully engaged manager")
+
 	// Wait for cache to be ready
 	log.Info("Waiting for cluster cache to be ready")
 	if !cl.GetCache().WaitForCacheSync(clusterCtx) {
@@ -302,16 +312,6 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 		Hash:    hashStr,
 	})
 
-	log.Info("Successfully added cluster")
-
-	// Engage cluster so that the manager can start operating on the cluster
-	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
-		log.Error(err, "Failed to engage manager, removing cluster")
-		p.removeCluster(clusterName)
-		return fmt.Errorf("failed to engage manager: %w", err)
-	}
-
-	log.Info("Successfully engaged manager")
 	return nil
 }
 
