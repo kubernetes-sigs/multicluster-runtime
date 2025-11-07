@@ -286,8 +286,6 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 		}
 	}()
 
-	log.Info("Successfully added cluster")
-
 	// Engage cluster so that the manager can start operating on the cluster
 	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
 		cancel()
@@ -311,6 +309,7 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 		Cancel:  cancel,
 		Hash:    hashStr,
 	})
+	log.Info("Successfully added cluster")
 
 	return nil
 }
