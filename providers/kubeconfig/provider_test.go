@@ -346,7 +346,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 
 		// Verify the cluster count hasn't changed (secret was skipped)
 		Eventually(provider.ListClusters, "2s").Should(HaveLen(2))
-		Consistently(provider.ListClusters, "2s").Should(HaveLen(2))
+		Consistently(provider.ListClusters, "10s").Should(HaveLen(2))
 
 		// Clean up
 		err = localCli.Delete(ctx, secretWithoutKubeconfig)
