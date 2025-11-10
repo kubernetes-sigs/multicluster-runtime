@@ -43,12 +43,26 @@ func WithEngageWithProviderClusters(engage bool) EngageOptions {
 
 // ApplyToFor applies this configuration to the given ForInput options.
 func (w EngageOptions) ApplyToFor(opts *ForInput) {
-	opts.EngageOptions = w
+	if w.engageWithLocalCluster != nil {
+		val := *w.engageWithLocalCluster
+		opts.engageWithLocalCluster = &val
+	}
+	if w.engageWithProviderClusters != nil {
+		val := *w.engageWithProviderClusters
+		opts.engageWithProviderClusters = &val
+	}
 }
 
 // ApplyToOwns applies this configuration to the given OwnsInput options.
 func (w EngageOptions) ApplyToOwns(opts *OwnsInput) {
-	opts.EngageOptions = w
+	if w.engageWithLocalCluster != nil {
+		val := *w.engageWithLocalCluster
+		opts.engageWithLocalCluster = &val
+	}
+	if w.engageWithProviderClusters != nil {
+		val := *w.engageWithProviderClusters
+		opts.engageWithProviderClusters = &val
+	}
 }
 
 // ApplyToWatches applies this configuration to the given WatchesInput options.
