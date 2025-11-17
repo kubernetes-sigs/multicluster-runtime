@@ -177,6 +177,14 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 	return parts[0], parts[1]
 }
 
+// GetProvider returns the provider for the given prefix.
+func (p *Provider) GetProvider(prefix string) (multicluster.Provider, bool) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	provider, ok := p.providers[prefix]
+	return provider, ok
+}
+
 // AddProvider adds a new provider with the given prefix.
 //
 // The startFunc is called to start the provider - starting the provider
