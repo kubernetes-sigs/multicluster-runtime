@@ -177,6 +177,14 @@ func (p *Provider) splitClusterName(clusterName string) (string, string) {
 	return parts[0], parts[1]
 }
 
+// ProviderNames returns the sorted list of prefixes for the
+// registered providers.
+func (p *Provider) ProviderNames() []string {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return slices.Sorted(maps.Keys(p.providers))
+}
+
 // GetProvider returns the provider for the given provider name.
 func (p *Provider) GetProvider(providerName string) (multicluster.Provider, bool) {
 	p.lock.RLock()

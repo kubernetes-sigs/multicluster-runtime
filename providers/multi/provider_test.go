@@ -184,6 +184,9 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		By("Adding the second namespace provider after starting the manager", func() {
 			err := provider.AddProvider("cloud2", cloud2provider)
 			Expect(err).NotTo(HaveOccurred())
+
+			providerNames := provider.ProviderNames()
+			Expect(providerNames).To(ContainElements("cloud1", "cloud2"))
 		})
 	})
 
