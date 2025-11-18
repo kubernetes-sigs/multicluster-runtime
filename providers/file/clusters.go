@@ -119,7 +119,7 @@ func (p *Provider) fromContexts(kubeCtxs map[string]*rest.Config) map[string]clu
 	c := make(map[string]cluster.Cluster, len(kubeCtxs))
 
 	for name, kubeCtx := range kubeCtxs {
-		cl, err := cluster.New(kubeCtx)
+		cl, err := cluster.New(kubeCtx, p.opts.ClusterOptions...)
 		if err != nil {
 			p.log.Error(err, "failed to create cluster", "context", name)
 			continue
