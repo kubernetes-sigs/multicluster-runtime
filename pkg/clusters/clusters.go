@@ -41,6 +41,10 @@ type Clusters[T cluster.Cluster] struct {
 	// an error.
 	ErrorHandler func(error, string, ...any)
 
+	// EqualClusters is used to compare two clusters for equality when
+	// adding or replacing clusters.
+	EqualClusters func(a, b T) bool
+
 	Lock     sync.RWMutex
 	Clusters map[string]T
 	Cancels  map[string]context.CancelFunc
@@ -59,9 +63,10 @@ type Index struct {
 // New returns a new instance of Clusters.
 func New[T cluster.Cluster]() Clusters[T] {
 	return Clusters[T]{
-		Clusters: make(map[string]T),
-		Cancels:  make(map[string]context.CancelFunc),
-		Indexers: []Index{},
+		EqualClusters: EqualClusters[T],
+		Clusters:      make(map[string]T),
+		Cancels:       make(map[string]context.CancelFunc),
+		Indexers:      []Index{},
 	}
 }
 
@@ -142,18 +147,25 @@ func (c *Clusters[T]) Remove(clusterName string) {
 	delete(c.Clusters, clusterName)
 }
 
+// EqualClusters compares two clusters for equality based on their
+// configuration. It is the default implementation used by
+// Clusters.AddOrReplace.
+func EqualClusters[T cluster.Cluster](a, b T) bool {
+	return cmp.Equal(a.GetConfig(), b.GetConfig())
+}
+
 // AddOrReplace adds or replaces a cluster with the given name.
 // If a cluster with the name already exists it compares the
 // configuration as returned by cluster.GetConfig() to compare
 // clusters.
 func (c *Clusters[T]) AddOrReplace(ctx context.Context, clusterName string, cl T, aware multicluster.Aware) error {
-	existing, err := c.Get(ctx, clusterName)
+	existing, err := c.GetTyped(ctx, clusterName)
 	if err != nil {
 		// Cluster does not exist, add it
 		return c.Add(ctx, clusterName, cl, aware)
 	}
 
-	if cmp.Equal(existing.GetConfig(), cl.GetConfig()) {
+	if c.EqualClusters(existing, cl) {
 		// Cluster already exists with the same config, nothing to do
 		return nil
 	}
