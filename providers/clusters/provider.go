@@ -17,6 +17,9 @@ limitations under the License.
 package clusters
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/go-logr/logr"
 
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
@@ -27,11 +30,31 @@ import (
 )
 
 var _ multicluster.Provider = &Provider{}
+var _ multicluster.ProviderRunnable = &Provider{}
 
-// Provider is a provider that only embeds clusters.Clusters.
+// InputChannelSize is the size of the input channel used to queue
+// clusters to be added to the provider.
+var InputChannelSize = 10
+
+// Provider is a provider that embeds clusters.Clusters.
+//
+// It showcases how to implement a multicluster.Provider using
+// clusters.Clusters and can be used as a starting point for building
+// custom providers.
+// Other providers should utilize clusters.Clusters directly instead of
+// this type, as this type is primarily for demonstration purposes and
+// can lead to opaque errors as it e.g. overwrites the .Add method.
 type Provider struct {
 	clusters.Clusters[cluster.Cluster]
 	log logr.Logger
+
+	waiting map[string]cluster.Cluster
+	input   chan item
+}
+
+type item struct {
+	clusterName string
+	cluster     cluster.Cluster
 }
 
 // New creates a new provider that embeds clusters.Clusters.
@@ -40,5 +63,63 @@ func New() *Provider {
 	p.log = log.Log.WithName("clusters-cluster-provider")
 	p.Clusters = clusters.New[cluster.Cluster]()
 	p.Clusters.ErrorHandler = p.log.Error
+	p.waiting = make(map[string]cluster.Cluster)
 	return p
+}
+
+func (p *Provider) startOnce() error {
+	p.Lock.Lock()
+	defer p.Lock.Unlock()
+	if p.input != nil {
+		return fmt.Errorf("provider already started")
+	}
+	p.input = make(chan item, InputChannelSize)
+	return nil
+}
+
+// Start starts the provider.
+func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
+	if err := p.startOnce(); err != nil {
+		return err
+	}
+
+	p.log.Info("starting provider")
+	for name, cl := range p.waiting {
+		if err := p.Clusters.AddOrReplace(ctx, name, cl, aware); err != nil {
+			p.log.Error(err, "error adding cluster", "name", name)
+		}
+	}
+	p.Lock.Lock()
+	p.waiting = nil
+	p.Lock.Unlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Info("stopping provider")
+			return nil
+		case it := <-p.input:
+			p.log.Info("adding cluster to provider", "name", it.clusterName)
+			if err := p.Clusters.AddOrReplace(ctx, it.clusterName, it.cluster, aware); err != nil {
+				p.log.Error(err, "error adding cluster", "name", it.clusterName)
+			}
+		}
+	}
+}
+
+// Add adds a new cluster to the provider. If the provider has not been
+// started yet it queues the cluster to be added when the provider
+// starts.
+func (p *Provider) Add(ctx context.Context, clusterName string, cl cluster.Cluster) error {
+	p.Lock.Lock()
+	defer p.Lock.Unlock()
+	if p.input != nil {
+		p.input <- item{
+			clusterName: clusterName,
+			cluster:     cl,
+		}
+		return nil
+	}
+	p.waiting[clusterName] = cl
+	return nil
 }
