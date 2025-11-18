@@ -28,9 +28,9 @@ var _ multicluster.Aware = &wrappedAware{}
 
 type wrappedAware struct {
 	multicluster.Aware
-	prefix, sep string
+	providerName, sep string
 }
 
 func (w *wrappedAware) Engage(ctx context.Context, name string, cl cluster.Cluster) error {
-	return w.Aware.Engage(ctx, w.prefix+w.sep+name, cl)
+	return w.Aware.Engage(ctx, w.providerName+w.sep+name, cl)
 }
