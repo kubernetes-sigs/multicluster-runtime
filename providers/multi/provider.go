@@ -260,17 +260,18 @@ func (p *Provider) RemoveProvider(providerName string) {
 }
 
 // Get returns a cluster by name.
-func (p *Provider) Get(ctx context.Context, clusterName string) (cluster.Cluster, error) {
-	providerName, clusterName := p.splitClusterName(clusterName)
-	p.log.V(1).Info("getting cluster", "providerName", providerName, "name", clusterName)
+func (p *Provider) Get(ctx context.Context, input string) (cluster.Cluster, error) {
+	providerName, clusterName := p.splitClusterName(input)
+	log := p.log.WithValues("providerName", providerName, "clusterName", clusterName)
+	log.V(1).Info("getting cluster")
 
 	p.lock.RLock()
 	provider, ok := p.providers[providerName]
 	p.lock.RUnlock()
 
 	if !ok {
-		p.log.Error(multicluster.ErrClusterNotFound, "provider not found for provider name", "providerName", providerName)
-		return nil, fmt.Errorf("provider not found %q: %w", providerName, multicluster.ErrClusterNotFound)
+		log.Error(multicluster.ErrClusterNotFound, "provider not found")
+		return nil, fmt.Errorf("provider not found %q (%q): %w", providerName, input, multicluster.ErrClusterNotFound)
 	}
 
 	return provider.Get(ctx, clusterName)
@@ -291,7 +292,7 @@ func (p *Provider) IndexField(ctx context.Context, obj client.Object, field stri
 		if err := provider.IndexField(ctx, obj, field, extractValue); err != nil {
 			errs = errors.Join(
 				errs,
-				fmt.Errorf("failed to index field %q on cluster %q: %w", field, providerName, err),
+				fmt.Errorf("failed to index field %q on provider %q: %w", field, providerName, err),
 			)
 		}
 	}
