@@ -49,6 +49,11 @@ type Options struct {
 	// starting the manager and/or the multi provider.
 	// Default: 10
 	ChannelSize int
+	// LoggerSuffix is an optional suffix to add to the logger name.
+	// This can be useful to distinguish multiple multi providers
+	// in the logs.
+	// Default: ""
+	LoggerSuffix string
 }
 
 // Provider is a multicluster.Provider that manages multiple providers.
@@ -83,7 +88,11 @@ func New(opts Options) *Provider {
 		p.opts.ChannelSize = 10
 	}
 
-	p.log = log.Log.WithName("multi-provider")
+	loggerName := "multi-provider"
+	if p.opts.LoggerSuffix != "" {
+		loggerName += "-" + p.opts.LoggerSuffix
+	}
+	p.log = log.Log.WithName(loggerName)
 
 	p.indexers = make([]index, 0)
 	p.providers = make(map[string]multicluster.Provider)
