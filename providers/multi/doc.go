@@ -20,4 +20,8 @@ limitations under the License.
 //
 // Each provider must be added with a unique name, which is used as
 // a prefix for clusters coming from that provider.
+//
+// When implementing providers that use the multi provider expose the
+// Options when constructing the multi provider to allow users to
+// configure the separator and logger suffix.
 package multi

@@ -38,8 +38,22 @@ var _ multicluster.Provider = &Provider{}
 
 // Options defines the options for the provider.
 type Options struct {
-	Separator   string
+	// Separator is the string is used when concatenating a provider
+	// name and a cluster name.
+	// Default: "#"
+	// Example: "provider1#clusterA"
+	Separator string
+	// ChannelSize is the size of the internal channel used to
+	// notify the provider to start newly added providers. Shouldn't
+	// generally be needed unless many providers are added before
+	// starting the manager and/or the multi provider.
+	// Default: 10
 	ChannelSize int
+	// LoggerSuffix is an optional suffix to add to the logger name.
+	// This can be useful to distinguish multiple multi providers
+	// in the logs.
+	// Default: ""
+	LoggerSuffix string
 }
 
 // Provider is a multicluster.Provider that manages multiple providers.
@@ -74,7 +88,11 @@ func New(opts Options) *Provider {
 		p.opts.ChannelSize = 10
 	}
 
-	p.log = log.Log.WithName("multi-provider")
+	loggerName := "multi-provider"
+	if p.opts.LoggerSuffix != "" {
+		loggerName += "-" + p.opts.LoggerSuffix
+	}
+	p.log = log.Log.WithName(loggerName)
 
 	p.indexers = make([]index, 0)
 	p.providers = make(map[string]multicluster.Provider)
@@ -242,17 +260,18 @@ func (p *Provider) RemoveProvider(providerName string) {
 }
 
 // Get returns a cluster by name.
-func (p *Provider) Get(ctx context.Context, clusterName string) (cluster.Cluster, error) {
-	providerName, clusterName := p.splitClusterName(clusterName)
-	p.log.V(1).Info("getting cluster", "providerName", providerName, "name", clusterName)
+func (p *Provider) Get(ctx context.Context, input string) (cluster.Cluster, error) {
+	providerName, clusterName := p.splitClusterName(input)
+	log := p.log.WithValues("providerName", providerName, "clusterName", clusterName)
+	log.V(1).Info("getting cluster")
 
 	p.lock.RLock()
 	provider, ok := p.providers[providerName]
 	p.lock.RUnlock()
 
 	if !ok {
-		p.log.Error(multicluster.ErrClusterNotFound, "provider not found for provider name", "providerName", providerName)
-		return nil, fmt.Errorf("provider not found %q: %w", providerName, multicluster.ErrClusterNotFound)
+		log.Error(multicluster.ErrClusterNotFound, "provider not found")
+		return nil, fmt.Errorf("provider not found %q (%q): %w", providerName, input, multicluster.ErrClusterNotFound)
 	}
 
 	return provider.Get(ctx, clusterName)
@@ -273,7 +292,7 @@ func (p *Provider) IndexField(ctx context.Context, obj client.Object, field stri
 		if err := provider.IndexField(ctx, obj, field, extractValue); err != nil {
 			errs = errors.Join(
 				errs,
-				fmt.Errorf("failed to index field %q on cluster %q: %w", field, providerName, err),
+				fmt.Errorf("failed to index field %q on provider %q: %w", field, providerName, err),
 			)
 		}
 	}
