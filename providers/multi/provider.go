@@ -38,7 +38,16 @@ var _ multicluster.Provider = &Provider{}
 
 // Options defines the options for the provider.
 type Options struct {
-	Separator   string
+	// Separator is the string is used when concatenating a provider
+	// name and a cluster name.
+	// Default: "#"
+	// Example: "provider1#clusterA"
+	Separator string
+	// ChannelSize is the size of the internal channel used to
+	// notify the provider to start newly added providers. Shouldn't
+	// generally be needed unless many providers are added before
+	// starting the manager and/or the multi provider.
+	// Default: 10
 	ChannelSize int
 }
 
