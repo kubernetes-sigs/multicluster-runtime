@@ -197,3 +197,10 @@ func (c *Clusters[T]) IndexField(ctx context.Context, obj client.Object, field s
 	c.lock.RUnlock()
 	return errs
 }
+
+// Indexers returns all indexers that have been applied to clusters.
+func (c *Clusters[T]) Indexers() []Index {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return slices.Clone(c.indexers)
+}
