@@ -99,23 +99,18 @@ func (c *Clusters[T]) GetTyped(_ context.Context, clusterName string) (T, error)
 // Add adds a new cluster.
 // If a cluster with the given name already exists, it returns an error.
 func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware multicluster.Aware) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if _, exists := c.clusters[clusterName]; exists {
-		return fmt.Errorf("cluster with name %s already exists", clusterName)
+	ctx, err := c.add(ctx, clusterName, cl)
+	if err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
 	if aware != nil {
 		if err := aware.Engage(ctx, clusterName, cl); err != nil {
-			cancel()
+			defer c.Remove(clusterName)
 			return err
 		}
 	}
 
-	c.clusters[clusterName] = cl
-	c.cancels[clusterName] = cancel
 	go func() {
 		defer c.Remove(clusterName)
 		if err := cl.Start(ctx); err != nil {
@@ -133,6 +128,20 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 	}
 
 	return nil
+}
+
+func (c *Clusters[T]) add(ctx context.Context, clusterName string, cl T) (context.Context, error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if _, exists := c.clusters[clusterName]; exists {
+		return nil, fmt.Errorf("cluster with name %s already exists", clusterName)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	c.clusters[clusterName] = cl
+	c.cancels[clusterName] = cancel
+	return ctx, nil
 }
 
 // Remove removes a cluster by name.
