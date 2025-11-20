@@ -45,12 +45,12 @@ type Clusters[T cluster.Cluster] struct {
 	// adding or replacing clusters.
 	EqualClusters func(a, b T) bool
 
-	Lock     sync.RWMutex
-	Clusters map[string]T
-	Cancels  map[string]context.CancelFunc
+	lock     sync.RWMutex
+	clusters map[string]T
+	cancels  map[string]context.CancelFunc
 	// Indexers holds representations of all indexes that were applied
 	// and should be applied to clusters that are added.
-	Indexers []Index
+	indexers []Index
 }
 
 // Index represents an index on a field in a cluster.
@@ -64,17 +64,17 @@ type Index struct {
 func New[T cluster.Cluster]() Clusters[T] {
 	return Clusters[T]{
 		EqualClusters: EqualClusters[T],
-		Clusters:      make(map[string]T),
-		Cancels:       make(map[string]context.CancelFunc),
-		Indexers:      []Index{},
+		clusters:      make(map[string]T),
+		cancels:       make(map[string]context.CancelFunc),
+		indexers:      []Index{},
 	}
 }
 
 // ClusterNames returns the names of all clusters in a sorted order.
 func (c *Clusters[T]) ClusterNames() []string {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
-	return slices.Sorted(maps.Keys(c.Clusters))
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return slices.Sorted(maps.Keys(c.clusters))
 }
 
 // Get returns the cluster with the given name as a cluster.Cluster.
@@ -85,10 +85,10 @@ func (c *Clusters[T]) Get(ctx context.Context, clusterName string) (cluster.Clus
 
 // GetTyped returns the cluster with the given name.
 func (c *Clusters[T]) GetTyped(_ context.Context, clusterName string) (T, error) {
-	c.Lock.RLock()
-	defer c.Lock.RUnlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
-	cl, ok := c.Clusters[clusterName]
+	cl, ok := c.clusters[clusterName]
 	if !ok {
 		return *new(T), fmt.Errorf("cluster with name %s not found: %w", clusterName, multicluster.ErrClusterNotFound)
 	}
@@ -99,10 +99,10 @@ func (c *Clusters[T]) GetTyped(_ context.Context, clusterName string) (T, error)
 // Add adds a new cluster.
 // If a cluster with the given name already exists, it returns an error.
 func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware multicluster.Aware) error {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	if _, exists := c.Clusters[clusterName]; exists {
+	if _, exists := c.clusters[clusterName]; exists {
 		return fmt.Errorf("cluster with name %s already exists", clusterName)
 	}
 
@@ -114,8 +114,8 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		}
 	}
 
-	c.Clusters[clusterName] = cl
-	c.Cancels[clusterName] = cancel
+	c.clusters[clusterName] = cl
+	c.cancels[clusterName] = cancel
 	go func() {
 		defer c.Remove(clusterName)
 		if err := cl.Start(ctx); err != nil {
@@ -125,7 +125,7 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		}
 	}()
 
-	for _, index := range c.Indexers {
+	for _, index := range c.indexers {
 		if err := cl.GetFieldIndexer().IndexField(ctx, index.Object, index.Field, index.Extractor); err != nil {
 			defer c.Remove(clusterName)
 			return fmt.Errorf("failed to index field %s on cluster %s: %w", index.Field, clusterName, err)
@@ -137,14 +137,14 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 
 // Remove removes a cluster by name.
 func (c *Clusters[T]) Remove(clusterName string) {
-	c.Lock.Lock()
-	defer c.Lock.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	if cancel, ok := c.Cancels[clusterName]; ok {
+	if cancel, ok := c.cancels[clusterName]; ok {
 		cancel()
 	}
-	delete(c.Cancels, clusterName)
-	delete(c.Clusters, clusterName)
+	delete(c.cancels, clusterName)
+	delete(c.clusters, clusterName)
 }
 
 // EqualClusters compares two clusters for equality based on their
@@ -179,21 +179,21 @@ func (c *Clusters[T]) AddOrReplace(ctx context.Context, clusterName string, cl T
 // It implements the IndexField method from the Provider interface.
 // Clusters engaged after this call will also have the index applied.
 func (c *Clusters[T]) IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error {
-	c.Lock.Lock()
-	c.Indexers = append(c.Indexers, Index{
+	c.lock.Lock()
+	c.indexers = append(c.indexers, Index{
 		Object:    obj,
 		Field:     field,
 		Extractor: extractValue,
 	})
-	c.Lock.Unlock()
+	c.lock.Unlock()
 
 	var errs error
-	c.Lock.RLock()
-	for name, cl := range c.Clusters {
+	c.lock.RLock()
+	for name, cl := range c.clusters {
 		if err := cl.GetFieldIndexer().IndexField(ctx, obj, field, extractValue); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to index field on cluster %q: %w", name, err))
 		}
 	}
-	c.Lock.RUnlock()
+	c.lock.RUnlock()
 	return errs
 }
