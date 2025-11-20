@@ -206,7 +206,6 @@ func (p *Provider) run(ctx context.Context, mcAware multicluster.Aware) error {
 		p.log.Info("adding or updating cluster", "clusterName", clusterName)
 		if err := p.Clusters.AddOrReplace(ctx, clusterName, cl, mcAware); err != nil {
 			p.log.Error(err, "failed to add or replace cluster", "clusterName", clusterName)
-			continue
 		}
 	}
 
