@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/go-logr/logr"
 
@@ -48,6 +49,7 @@ type Provider struct {
 	clusters.Clusters[cluster.Cluster]
 	log logr.Logger
 
+	lock    sync.Mutex
 	waiting map[string]cluster.Cluster
 	input   chan item
 }
@@ -68,8 +70,8 @@ func New() *Provider {
 }
 
 func (p *Provider) startOnce() error {
-	p.Lock.Lock()
-	defer p.Lock.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	if p.input != nil {
 		return fmt.Errorf("provider already started")
 	}
@@ -84,15 +86,15 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 	}
 
 	p.log.Info("starting provider")
-	for name, cl := range p.waiting {
+	for clusterName, cl := range p.waiting {
 		p.log.Info("adding waiting cluster to provider", "clusterName", clusterName)
 		if err := p.Clusters.AddOrReplace(ctx, clusterName, cl, aware); err != nil {
 			p.log.Error(err, "error adding cluster", "clusterName", clusterName)
 		}
 	}
-	p.Lock.Lock()
+	p.lock.Lock()
 	p.waiting = nil
-	p.Lock.Unlock()
+	p.lock.Unlock()
 
 	for {
 		select {
@@ -112,8 +114,8 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 // started yet it queues the cluster to be added when the provider
 // starts.
 func (p *Provider) Add(ctx context.Context, clusterName string, cl cluster.Cluster) error {
-	p.Lock.Lock()
-	defer p.Lock.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	if p.input != nil {
 		p.log.Info("queueing cluster to be added to provider", "clusterName", clusterName)
 		p.input <- item{
