@@ -85,8 +85,9 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 
 	p.log.Info("starting provider")
 	for name, cl := range p.waiting {
-		if err := p.Clusters.AddOrReplace(ctx, name, cl, aware); err != nil {
-			p.log.Error(err, "error adding cluster", "name", name)
+		p.log.Info("adding waiting cluster to provider", "clusterName", clusterName)
+		if err := p.Clusters.AddOrReplace(ctx, clusterName, cl, aware); err != nil {
+			p.log.Error(err, "error adding cluster", "clusterName", clusterName)
 		}
 	}
 	p.Lock.Lock()
@@ -99,9 +100,9 @@ func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
 			p.log.Info("stopping provider")
 			return nil
 		case it := <-p.input:
-			p.log.Info("adding cluster to provider", "name", it.clusterName)
+			p.log.Info("adding cluster to provider", "clusterName", it.clusterName)
 			if err := p.Clusters.AddOrReplace(ctx, it.clusterName, it.cluster, aware); err != nil {
-				p.log.Error(err, "error adding cluster", "name", it.clusterName)
+				p.log.Error(err, "error adding cluster", "clusterName", it.clusterName)
 			}
 		}
 	}
@@ -114,12 +115,14 @@ func (p *Provider) Add(ctx context.Context, clusterName string, cl cluster.Clust
 	p.Lock.Lock()
 	defer p.Lock.Unlock()
 	if p.input != nil {
+		p.log.Info("queueing cluster to be added to provider", "clusterName", clusterName)
 		p.input <- item{
 			clusterName: clusterName,
 			cluster:     cl,
 		}
 		return nil
 	}
+	p.log.Info("adding cluster to waiting list", "clusterName", clusterName)
 	p.waiting[clusterName] = cl
 	return nil
 }
