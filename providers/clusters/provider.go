@@ -69,32 +69,32 @@ func New() *Provider {
 	return p
 }
 
-func (p *Provider) startOnce() error {
+func (p *Provider) startOnce() (map[string]cluster.Cluster, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	if p.input != nil {
-		return fmt.Errorf("provider already started")
+		return nil, fmt.Errorf("provider already started")
 	}
 	p.input = make(chan item, InputChannelSize)
-	return nil
+	waiting := p.waiting
+	p.waiting = nil
+	return waiting, nil
 }
 
 // Start starts the provider.
 func (p *Provider) Start(ctx context.Context, aware multicluster.Aware) error {
-	if err := p.startOnce(); err != nil {
+	waiting, err := p.startOnce()
+	if err != nil {
 		return err
 	}
 
 	p.log.Info("starting provider")
-	for clusterName, cl := range p.waiting {
+	for clusterName, cl := range waiting {
 		p.log.Info("adding waiting cluster to provider", "clusterName", clusterName)
 		if err := p.Clusters.AddOrReplace(ctx, clusterName, cl, aware); err != nil {
 			p.log.Error(err, "error adding cluster", "clusterName", clusterName)
 		}
 	}
-	p.lock.Lock()
-	p.waiting = nil
-	p.lock.Unlock()
 
 	for {
 		select {

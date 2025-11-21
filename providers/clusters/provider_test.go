@@ -52,6 +52,30 @@ var _ = Describe("Provider Clusters", Ordered, func() {
 			provider = New()
 		})
 
+		By("Queueing a cluster into the provider", func() {
+			var cfg *rest.Config
+			var cl cluster.Cluster
+			// Start a new cluster using envtest.
+			// This depends on the kube server used for testing, but
+			// envtest is generally a good choice.
+			localEnv := &envtest.Environment{}
+			var err error
+			cfg, err = localEnv.Start()
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				err := localEnv.Stop()
+				Expect(err).NotTo(HaveOccurred(), "Failed to stop envtest cluster")
+			})
+
+			// Create a cluster.Cluster for the new cluster
+			cl, err = cluster.New(cfg)
+			Expect(err).NotTo(HaveOccurred(), "Failed to create new cluster")
+
+			// Add it to the provider
+			err = provider.Add(ctx, "pre-cluster", cl)
+			Expect(err).NotTo(HaveOccurred(), "Failed to add new cluster to provider")
+		})
+
 		By("Creating a new manager", func() {
 			var err error
 			manager, err = mcmanager.New(localCfg, provider, mcmanager.Options{})
@@ -68,6 +92,19 @@ var _ = Describe("Provider Clusters", Ordered, func() {
 	It("Should not have any clusters initially", func(ctx context.Context) {
 		knownClusters := provider.ClusterNames()
 		Expect(knownClusters).To(BeEmpty(), "Expected no clusters to be known initially")
+	})
+
+	It("Should engage pre-added cluster when started", func(ctx context.Context) {
+		var retrieved cluster.Cluster
+		Eventually(func(g Gomega) {
+			var err error
+			retrieved, err = manager.GetCluster(ctx, "pre-cluster")
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to get pre-added cluster from manager")
+		}, "1m", "1s").Should(Succeed())
+		Expect(retrieved).NotTo(BeNil(), "Expected pre-added cluster to be returned")
+
+		knownClusters := provider.ClusterNames()
+		Expect(knownClusters).To(HaveLen(1), "Expected one cluster to be known")
 	})
 
 	It("Should offer a new cluster", func(ctx context.Context) {
@@ -107,7 +144,7 @@ var _ = Describe("Provider Clusters", Ordered, func() {
 		Expect(retrieved).To(Equal(cl), "Expected cluster added to provider to be the same as the one retrieved from the manager")
 
 		knownClusters := provider.ClusterNames()
-		Expect(knownClusters).To(HaveLen(1), "Expected one cluster to be known")
+		Expect(knownClusters).To(HaveLen(2), "Expected one cluster to be known")
 
 		By("By removing the cluster from the provider", func() {
 			// .Remove never errors and is safe to defer - if a cluster
@@ -117,7 +154,7 @@ var _ = Describe("Provider Clusters", Ordered, func() {
 		})
 
 		knownClusters = provider.ClusterNames()
-		Expect(knownClusters).To(BeEmpty(), "Expected no clusters to be known after removal")
+		Expect(knownClusters).To(HaveLen(1), "Expected one clusters to be known after removal")
 	})
 
 	AfterAll(func() {
