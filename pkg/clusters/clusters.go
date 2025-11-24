@@ -104,13 +104,6 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		return err
 	}
 
-	if aware != nil {
-		if err := aware.Engage(ctx, clusterName, cl); err != nil {
-			defer c.Remove(clusterName)
-			return err
-		}
-	}
-
 	go func() {
 		defer c.Remove(clusterName)
 		if err := cl.Start(ctx); err != nil {
@@ -119,6 +112,13 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 			}
 		}
 	}()
+
+	if aware != nil {
+		if err := aware.Engage(ctx, clusterName, cl); err != nil {
+			defer c.Remove(clusterName)
+			return err
+		}
+	}
 
 	for _, index := range c.indexers {
 		if err := cl.GetFieldIndexer().IndexField(ctx, index.Object, index.Field, index.Extractor); err != nil {
