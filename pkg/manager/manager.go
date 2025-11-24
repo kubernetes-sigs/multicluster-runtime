@@ -124,9 +124,6 @@ type Runnable interface {
 
 var _ Manager = &mcManager{}
 
-// Option mutates mcManager configuration.
-type Option func(*mcManager)
-
 type mcManager struct {
 	manager.Manager
 	provider multicluster.Provider
@@ -137,24 +134,20 @@ type mcManager struct {
 // New returns a new Manager for creating Controllers. The provider is used to
 // discover and manage clusters. With a provider set to nil, the manager will
 // behave like a regular controller-runtime manager.
-func New(config *rest.Config, provider multicluster.Provider, opts manager.Options, mcOpts ...Option) (Manager, error) {
+func New(config *rest.Config, provider multicluster.Provider, opts Options) (Manager, error) {
 	mgr, err := manager.New(config, opts)
 	if err != nil {
 		return nil, err
 	}
-	return WithMultiCluster(mgr, provider, mcOpts...)
+	return WithMultiCluster(mgr, provider)
 }
 
 // WithMultiCluster wraps a host manager to run multi-cluster controllers.
-func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider, mcOpts ...Option) (Manager, error) {
-	m := &mcManager{Manager: mgr, provider: provider}
-
-	// Apply options before wiring the Runnable so overrides take effect early.
-	for _, o := range mcOpts {
-		o(m)
-	}
-
-	return m, nil
+func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider) (Manager, error) {
+	return &mcManager{
+		Manager:  mgr,
+		provider: provider,
+	}, nil
 }
 
 // GetCluster returns a cluster for the given identifying cluster name. Get
