@@ -213,6 +213,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			lion := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "lion"}, lion)
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(lion.Data["stomach"]).To(Not(BeEmpty()))
 			return lion.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -227,6 +228,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			tiger := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "tiger"}, tiger)
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(tiger.Data["stomach"]).To(Not(BeEmpty()))
 			return tiger.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -259,6 +261,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			elephant := &corev1.ConfigMap{}
 			err := zooCli.Get(ctx, client.ObjectKey{Namespace: "zoo", Name: "elephant"}, elephant)
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(elephant.Data["stomach"]).To(Not(BeEmpty()))
 			return elephant.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -296,6 +299,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			dog := &corev1.ConfigMap{}
 			err := jungleCli.Get(ctx, client.ObjectKey{Namespace: "jungle", Name: "dog"}, dog)
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(dog.Data["stomach"]).To(Not(BeEmpty()))
 			return dog.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
@@ -318,6 +322,7 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 			leopard := &corev1.ConfigMap{}
 			err := jungleCli.Get(ctx, client.ObjectKey{Namespace: "jungle", Name: "leopard"}, leopard)
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(leopard.Data["stomach"]).To(Not(BeEmpty()))
 			return leopard.Data["stomach"]
 		}, "10s").Should(Equal("food"))
 	})
