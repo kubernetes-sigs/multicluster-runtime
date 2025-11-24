@@ -23,6 +23,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -45,6 +46,11 @@ type Clusters[T cluster.Cluster] struct {
 	// adding or replacing clusters.
 	EqualClusters func(a, b T) bool
 
+	// WaitCacheTimeout is the duration to wait for a cluster's cache
+	// to sync when adding a new cluster.
+	// Default is 30 seconds.
+	WaitCacheTimeout time.Duration
+
 	lock     sync.RWMutex
 	clusters map[string]T
 	cancels  map[string]context.CancelFunc
@@ -63,10 +69,11 @@ type Index struct {
 // New returns a new instance of Clusters.
 func New[T cluster.Cluster]() Clusters[T] {
 	return Clusters[T]{
-		EqualClusters: EqualClusters[T],
-		clusters:      make(map[string]T),
-		cancels:       make(map[string]context.CancelFunc),
-		indexers:      []Index{},
+		EqualClusters:    EqualClusters[T],
+		WaitCacheTimeout: 30 * time.Second,
+		clusters:         make(map[string]T),
+		cancels:          make(map[string]context.CancelFunc),
+		indexers:         []Index{},
 	}
 }
 
@@ -104,13 +111,6 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		return err
 	}
 
-	if aware != nil {
-		if err := aware.Engage(ctx, clusterName, cl); err != nil {
-			defer c.Remove(clusterName)
-			return err
-		}
-	}
-
 	go func() {
 		defer c.Remove(clusterName)
 		if err := cl.Start(ctx); err != nil {
@@ -119,6 +119,21 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 			}
 		}
 	}()
+
+	waitCacheCtx, cancel := context.WithTimeout(ctx, c.WaitCacheTimeout)
+	defer cancel()
+
+	if !cl.GetCache().WaitForCacheSync(waitCacheCtx) {
+		defer c.Remove(clusterName)
+		return fmt.Errorf("timed out after %q waiting for cache to sync for cluster %s", c.WaitCacheTimeout, clusterName)
+	}
+
+	if aware != nil {
+		if err := aware.Engage(ctx, clusterName, cl); err != nil {
+			defer c.Remove(clusterName)
+			return err
+		}
+	}
 
 	for _, index := range c.indexers {
 		if err := cl.GetFieldIndexer().IndexField(ctx, index.Object, index.Field, index.Extractor); err != nil {
