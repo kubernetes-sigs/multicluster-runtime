@@ -65,6 +65,12 @@ type Provider interface {
 
 	// IndexField indexes the given object by the given field on all engaged
 	// clusters, current and future.
+	//
+	// When indexing a field the index must be applied to all existing
+	// and future clusters.
+	//
+	// When implementing a provider that yields clusters with a shared
+	// cache ensure that the indexing requests are deduplicated.
 	IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error
 }
 
