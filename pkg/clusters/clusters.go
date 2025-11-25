@@ -135,12 +135,15 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		}
 	}
 
+	c.lock.RLock()
 	for _, index := range c.indexers {
 		if err := cl.GetFieldIndexer().IndexField(ctx, index.Object, index.Field, index.Extractor); err != nil {
+			c.lock.RUnlock()
 			defer c.Remove(clusterName)
 			return fmt.Errorf("failed to index field %s on cluster %s: %w", index.Field, clusterName, err)
 		}
 	}
+	c.lock.RUnlock()
 
 	return nil
 }
@@ -209,16 +212,20 @@ func (c *Clusters[T]) IndexField(ctx context.Context, obj client.Object, field s
 		Field:     field,
 		Extractor: extractValue,
 	})
+	clusters := maps.Clone(c.clusters)
 	c.lock.Unlock()
 
+	// The standard cache implementation errors if the same object/field
+	// is indexed multiple times. But custom cache implementations may
+	// not error, so there's no tracking happening, just register the
+	// indexes in and apply them to all clusters.
+
 	var errs error
-	c.lock.RLock()
-	for name, cl := range c.clusters {
+	for name, cl := range clusters {
 		if err := cl.GetFieldIndexer().IndexField(ctx, obj, field, extractValue); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to index field on cluster %q: %w", name, err))
 		}
 	}
-	c.lock.RUnlock()
 	return errs
 }
 
