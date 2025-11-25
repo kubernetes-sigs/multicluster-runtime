@@ -17,6 +17,11 @@ limitations under the License.
 package builder
 
 import (
+	"context"
+
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
+
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 	mcsource "sigs.k8s.io/multicluster-runtime/pkg/source"
 )
 
@@ -55,6 +60,22 @@ func WithEngageWithProviderClusters(engage bool) EngageOptions {
 func WithClusterFilter(filter ClusterFilterFunc) EngageOptions {
 	return EngageOptions{
 		clusterFilter: filter,
+	}
+}
+
+// WithClustersFromProvider configures the controller to only engage with
+// the clusters provided by the given provider.
+// If is a helper function that wraps WithClusterFilter and has the
+// same constraints and mutually exclusive.
+func WithClustersFromProvider(ctx context.Context, provider multicluster.Provider) EngageOptions {
+	return EngageOptions{
+		clusterFilter: func(clusterName string, cluster cluster.Cluster) bool {
+			cl, err := provider.Get(ctx, clusterName)
+			if err != nil {
+				return false
+			}
+			return cl == cluster
+		},
 	}
 }
 
