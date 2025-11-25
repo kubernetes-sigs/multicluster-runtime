@@ -38,45 +38,53 @@ import (
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 )
 
+// ClusterFilterFunc is a function that filters clusters.
+type ClusterFilterFunc func(clusterName string, cluster cluster.Cluster) bool
+
 // Kind creates a KindSource with the given cache provider.
 func Kind[object client.Object](
 	obj object,
 	handler mchandler.TypedEventHandlerFunc[object, mcreconcile.Request],
+	clusterFilter ClusterFilterFunc,
 	predicates ...predicate.TypedPredicate[object],
 ) SyncingSource[object] {
-	return TypedKind[object, mcreconcile.Request](obj, handler, predicates...)
+	return TypedKind[object, mcreconcile.Request](obj, handler, clusterFilter, predicates...)
 }
 
 // TypedKind creates a KindSource with the given cache provider.
 func TypedKind[object client.Object, request mcreconcile.ClusterAware[request]](
 	obj object,
 	handler mchandler.TypedEventHandlerFunc[object, request],
+	clusterFilter ClusterFilterFunc,
 	predicates ...predicate.TypedPredicate[object],
 ) TypedSyncingSource[object, request] {
 	return &kind[object, request]{
-		obj:        obj,
-		handler:    handler,
-		predicates: predicates,
-		project:    func(_ cluster.Cluster, obj object) (object, error) { return obj, nil },
-		resync:     0, // no periodic resync by default
+		obj:           obj,
+		handler:       handler,
+		predicates:    predicates,
+		project:       func(_ cluster.Cluster, obj object) (object, error) { return obj, nil },
+		resync:        0, // no periodic resync by default
+		clusterFilter: clusterFilter,
 	}
 }
 
 type kind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
-	obj        object
-	handler    mchandler.TypedEventHandlerFunc[object, request]
-	predicates []predicate.TypedPredicate[object]
-	project    func(cluster.Cluster, object) (object, error)
-	resync     time.Duration
+	obj           object
+	handler       mchandler.TypedEventHandlerFunc[object, request]
+	predicates    []predicate.TypedPredicate[object]
+	project       func(cluster.Cluster, object) (object, error)
+	resync        time.Duration
+	clusterFilter ClusterFilterFunc
 }
 
 type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
-	clusterName string
-	cl          cluster.Cluster
-	obj         object
-	h           handler.TypedEventHandler[object, request]
-	preds       []predicate.TypedPredicate[object]
-	resync      time.Duration
+	clusterName   string
+	cl            cluster.Cluster
+	obj           object
+	h             handler.TypedEventHandler[object, request]
+	preds         []predicate.TypedPredicate[object]
+	resync        time.Duration
+	clusterFilter ClusterFilterFunc
 
 	mu           sync.Mutex
 	registration toolscache.ResourceEventHandlerRegistration
@@ -90,17 +98,21 @@ func (k *kind[object, request]) WithProjection(project func(cluster.Cluster, obj
 }
 
 func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crsource.TypedSource[request], error) {
+	if k.clusterFilter != nil && !k.clusterFilter(name, cl) {
+		return nil, nil
+	}
 	obj, err := k.project(cl, k.obj)
 	if err != nil {
 		return nil, err
 	}
 	return &clusterKind[object, request]{
-		clusterName: name,
-		cl:          cl,
-		obj:         obj,
-		h:           k.handler(name, cl),
-		preds:       k.predicates,
-		resync:      k.resync,
+		clusterName:   name,
+		cl:            cl,
+		obj:           obj,
+		h:             k.handler(name, cl),
+		preds:         k.predicates,
+		resync:        k.resync,
+		clusterFilter: k.clusterFilter,
 	}, nil
 }
 
@@ -108,6 +120,9 @@ func (k *kind[object, request]) SyncingForCluster(name string, cl cluster.Cluste
 	src, err := k.ForCluster(name, cl)
 	if err != nil {
 		return nil, err
+	}
+	if src == nil {
+		return nil, nil
 	}
 	return src.(crsource.TypedSyncingSource[request]), nil
 }

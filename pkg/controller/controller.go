@@ -146,6 +146,9 @@ func (c *mcController[request]) Engage(ctx context.Context, name string, cl clus
 			cancel()
 			return fmt.Errorf("failed to engage for cluster %q: %w", name, err)
 		}
+		if src == nil {
+			continue
+		}
 		if err := c.TypedController.Watch(startWithinContext[request](engCtx, src)); err != nil {
 			cancel()
 			return fmt.Errorf("failed to watch for cluster %q: %w", name, err)
@@ -180,6 +183,9 @@ func (c *mcController[request]) MultiClusterWatch(src mcsource.TypedSource[clien
 		src, err := src.ForCluster(name, eng.cluster)
 		if err != nil {
 			return fmt.Errorf("failed to engage for cluster %q: %w", name, err)
+		}
+		if src == nil {
+			continue
 		}
 		if err := c.TypedController.Watch(startWithinContext[request](eng.ctx, src)); err != nil {
 			return fmt.Errorf("failed to watch for cluster %q: %w", name, err)

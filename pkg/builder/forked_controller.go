@@ -149,6 +149,7 @@ type untypedWatchesInput interface {
 	setObjectProjection(objectProjection)
 	setEngageWithLocalCluster(engage bool)
 	setEngageWithProviderClusters(engage bool)
+	setClusterFilter(ClusterFilterFunc)
 }
 
 // WatchesInput represents the information set by Watches method.
@@ -167,6 +168,10 @@ func (w *WatchesInput[request]) setPredicates(predicates []predicate.Predicate) 
 
 func (w *WatchesInput[request]) setObjectProjection(objectProjection objectProjection) {
 	w.objectProjection = objectProjection
+}
+
+func (w *WatchesInput[request]) setClusterFilter(clusterFilter ClusterFilterFunc) {
+	w.clusterFilter = clusterFilter
 }
 
 // Watches defines the type of Object to watch, and configures the ControllerManagedBy to respond to create / delete /
@@ -352,15 +357,17 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, blder.forInput.predicates...)
 
-		src := mcsource.TypedKind[client.Object, request](blder.forInput.object, hdler, allPredicates...).
+		src := mcsource.TypedKind[client.Object, request](blder.forInput.object, hdler, blder.forInput.clusterFilter, allPredicates...).
 			WithProjection(blder.project(blder.forInput.objectProjection))
 		if ptr.Deref(blder.forInput.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if err := blder.ctrl.Watch(src); err != nil {
-				return err
+			if src != nil {
+				if err := blder.ctrl.Watch(src); err != nil {
+					return err
+				}
 			}
 		}
 		if ptr.Deref(blder.forInput.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {
@@ -391,15 +398,17 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		}
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, own.predicates...)
-		src := mcsource.TypedKind[client.Object, request](own.object, hdler, allPredicates...).
+		src := mcsource.TypedKind[client.Object, request](own.object, hdler, own.clusterFilter, allPredicates...).
 			WithProjection(blder.project(own.objectProjection))
 		if ptr.Deref(own.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if err := blder.ctrl.Watch(src); err != nil {
-				return err
+			if src != nil {
+				if err := blder.ctrl.Watch(src); err != nil {
+					return err
+				}
 			}
 		}
 		if ptr.Deref(own.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {
@@ -416,14 +425,16 @@ func (blder *TypedBuilder[request]) doWatch() error {
 	for _, w := range blder.watchesInput {
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, w.predicates...)
-		src := mcsource.TypedKind[client.Object, request](w.obj, w.handler, allPredicates...).WithProjection(blder.project(w.objectProjection))
+		src := mcsource.TypedKind[client.Object, request](w.obj, w.handler, w.clusterFilter, allPredicates...).WithProjection(blder.project(w.objectProjection))
 		if ptr.Deref(w.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if err := blder.ctrl.Watch(src); err != nil {
-				return err
+			if src != nil {
+				if err := blder.ctrl.Watch(src); err != nil {
+					return err
+				}
 			}
 		}
 		if ptr.Deref(w.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {

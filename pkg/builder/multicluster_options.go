@@ -16,11 +16,19 @@ limitations under the License.
 
 package builder
 
+import (
+	mcsource "sigs.k8s.io/multicluster-runtime/pkg/source"
+)
+
+// ClusterFilterFunc is a function that filters clusters.
+type ClusterFilterFunc = mcsource.ClusterFilterFunc
+
 // EngageOptions configures how the controller should engage with clusters
 // when a provider is configured.
 type EngageOptions struct {
 	engageWithLocalCluster     *bool
 	engageWithProviderClusters *bool
+	clusterFilter              ClusterFilterFunc
 }
 
 // WithEngageWithLocalCluster configures whether the controller should engage
@@ -41,6 +49,15 @@ func WithEngageWithProviderClusters(engage bool) EngageOptions {
 	}
 }
 
+// WithClusterFilter configures a filter function that determines
+// which clusters the controller should engage with.
+// The option applies only if WithEngageWithProviderClusters is true.
+func WithClusterFilter(filter ClusterFilterFunc) EngageOptions {
+	return EngageOptions{
+		clusterFilter: filter,
+	}
+}
+
 // ApplyToFor applies this configuration to the given ForInput options.
 func (w EngageOptions) ApplyToFor(opts *ForInput) {
 	if w.engageWithLocalCluster != nil {
@@ -50,6 +67,9 @@ func (w EngageOptions) ApplyToFor(opts *ForInput) {
 	if w.engageWithProviderClusters != nil {
 		val := *w.engageWithProviderClusters
 		opts.engageWithProviderClusters = &val
+	}
+	if w.clusterFilter != nil {
+		opts.clusterFilter = w.clusterFilter
 	}
 }
 
@@ -63,6 +83,9 @@ func (w EngageOptions) ApplyToOwns(opts *OwnsInput) {
 		val := *w.engageWithProviderClusters
 		opts.engageWithProviderClusters = &val
 	}
+	if w.clusterFilter != nil {
+		opts.clusterFilter = w.clusterFilter
+	}
 }
 
 // ApplyToWatches applies this configuration to the given WatchesInput options.
@@ -72,6 +95,9 @@ func (w EngageOptions) ApplyToWatches(opts untypedWatchesInput) {
 	}
 	if w.engageWithProviderClusters != nil {
 		opts.setEngageWithProviderClusters(*w.engageWithProviderClusters)
+	}
+	if w.clusterFilter != nil {
+		opts.setClusterFilter(w.clusterFilter)
 	}
 }
 
