@@ -18,6 +18,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -259,14 +260,17 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 	log.V(1).Info("kind source handler registered", "hasRegistration", reg != nil)
 
 	// Defensive: ensure cache is synced.
-	if !ck.cl.GetCache().WaitForCacheSync(ctx) {
+	timeoutDuration := 10 * time.Minute
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, timeoutDuration)
+	defer timeoutCancel()
+	if !ck.cl.GetCache().WaitForCacheSync(timeoutCtx) {
 		ck.mu.Lock()
 		_ = inf.RemoveEventHandler(ck.registration)
 		ck.registration = nil
 		ck.activeCtx = nil
 		ck.mu.Unlock()
-		log.V(1).Info("cache not synced; handler removed")
-		return ctx.Err()
+		log.V(1).Error(timeoutCtx.Err(), "cache not synced; handler removed")
+		return fmt.Errorf("cache is not synced within timeout %q: %w", timeoutDuration, timeoutCtx.Err())
 	}
 	log.V(1).Info("kind source cache synced")
 
