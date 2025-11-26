@@ -56,4 +56,5 @@ type TypedSyncingSource[object client.Object, request mcreconcile.ClusterAware[r
 	TypedSource[object, request]
 	SyncingForCluster(string, cluster.Cluster) (source.TypedSyncingSource[request], bool, error)
 	WithProjection(func(cluster.Cluster, object) (object, error)) TypedSyncingSource[object, request]
+	WithClusterFilter(ClusterFilterFunc) TypedSyncingSource[object, request]
 }

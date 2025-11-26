@@ -45,26 +45,23 @@ type ClusterFilterFunc func(clusterName string, cluster cluster.Cluster) bool
 func Kind[object client.Object](
 	obj object,
 	handler mchandler.TypedEventHandlerFunc[object, mcreconcile.Request],
-	clusterFilter ClusterFilterFunc,
 	predicates ...predicate.TypedPredicate[object],
 ) SyncingSource[object] {
-	return TypedKind[object, mcreconcile.Request](obj, handler, clusterFilter, predicates...)
+	return TypedKind[object, mcreconcile.Request](obj, handler, predicates...)
 }
 
 // TypedKind creates a KindSource with the given cache provider.
 func TypedKind[object client.Object, request mcreconcile.ClusterAware[request]](
 	obj object,
 	handler mchandler.TypedEventHandlerFunc[object, request],
-	clusterFilter ClusterFilterFunc,
 	predicates ...predicate.TypedPredicate[object],
 ) TypedSyncingSource[object, request] {
 	return &kind[object, request]{
-		obj:           obj,
-		handler:       handler,
-		predicates:    predicates,
-		project:       func(_ cluster.Cluster, obj object) (object, error) { return obj, nil },
-		resync:        0, // no periodic resync by default
-		clusterFilter: clusterFilter,
+		obj:        obj,
+		handler:    handler,
+		predicates: predicates,
+		project:    func(_ cluster.Cluster, obj object) (object, error) { return obj, nil },
+		resync:     0, // no periodic resync by default
 	}
 }
 
@@ -78,13 +75,12 @@ type kind[object client.Object, request mcreconcile.ClusterAware[request]] struc
 }
 
 type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
-	clusterName   string
-	cl            cluster.Cluster
-	obj           object
-	h             handler.TypedEventHandler[object, request]
-	preds         []predicate.TypedPredicate[object]
-	resync        time.Duration
-	clusterFilter ClusterFilterFunc
+	clusterName string
+	cl          cluster.Cluster
+	obj         object
+	h           handler.TypedEventHandler[object, request]
+	preds       []predicate.TypedPredicate[object]
+	resync      time.Duration
 
 	mu           sync.Mutex
 	registration toolscache.ResourceEventHandlerRegistration
@@ -94,6 +90,11 @@ type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]
 // WithProjection sets the projection function for the KindSource.
 func (k *kind[object, request]) WithProjection(project func(cluster.Cluster, object) (object, error)) TypedSyncingSource[object, request] {
 	k.project = project
+	return k
+}
+
+func (k *kind[object, request]) WithClusterFilter(filter ClusterFilterFunc) TypedSyncingSource[object, request] {
+	k.clusterFilter = filter
 	return k
 }
 
@@ -110,13 +111,12 @@ func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crs
 		shouldEngage = k.clusterFilter(name, cl)
 	}
 	return &clusterKind[object, request]{
-		clusterName:   name,
-		cl:            cl,
-		obj:           obj,
-		h:             k.handler(name, cl),
-		preds:         k.predicates,
-		resync:        k.resync,
-		clusterFilter: k.clusterFilter,
+		clusterName: name,
+		cl:          cl,
+		obj:         obj,
+		h:           k.handler(name, cl),
+		preds:       k.predicates,
+		resync:      k.resync,
 	}, shouldEngage, nil
 }
 

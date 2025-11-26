@@ -227,7 +227,6 @@ var _ = Describe("application", func() {
 						mchandler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, rs *appsv1.ReplicaSet) []mcreconcile.WithCluster[empty] {
 							return []mcreconcile.WithCluster[empty]{{}}
 						}),
-						nil,
 					).ForCluster("", m.GetLocalManager()),
 				)).
 				Build(typedNoop)
