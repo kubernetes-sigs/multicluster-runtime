@@ -745,7 +745,8 @@ type fakeType struct {
 func (*fakeType) GetObjectKind() schema.ObjectKind { return nil }
 func (*fakeType) DeepCopyObject() runtime.Object   { return nil }
 
-func must[T any](x T, err error) T {
+func must[T any](x T, b bool, err error) T {
 	Expect(err).NotTo(HaveOccurred())
+	Expect(b).To(BeTrue())
 	return x
 }

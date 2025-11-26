@@ -97,13 +97,17 @@ func (k *kind[object, request]) WithProjection(project func(cluster.Cluster, obj
 	return k
 }
 
-func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crsource.TypedSource[request], error) {
-	if k.clusterFilter != nil && !k.clusterFilter(name, cl) {
-		return nil, nil
-	}
+func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crsource.TypedSource[request], bool, error) {
 	obj, err := k.project(cl, k.obj)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	// A valid TypedSource must always be returned, even if it shouldn't
+	// engage based on the filter to allow engaging with the local
+	// cluster.
+	shouldEngage := true
+	if k.clusterFilter != nil {
+		shouldEngage = k.clusterFilter(name, cl)
 	}
 	return &clusterKind[object, request]{
 		clusterName:   name,
@@ -113,18 +117,15 @@ func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crs
 		preds:         k.predicates,
 		resync:        k.resync,
 		clusterFilter: k.clusterFilter,
-	}, nil
+	}, shouldEngage, nil
 }
 
-func (k *kind[object, request]) SyncingForCluster(name string, cl cluster.Cluster) (crsource.TypedSyncingSource[request], error) {
-	src, err := k.ForCluster(name, cl)
+func (k *kind[object, request]) SyncingForCluster(name string, cl cluster.Cluster) (crsource.TypedSyncingSource[request], bool, error) {
+	src, shouldEngage, err := k.ForCluster(name, cl)
 	if err != nil {
-		return nil, err
+		return nil, shouldEngage, err
 	}
-	if src == nil {
-		return nil, nil
-	}
-	return src.(crsource.TypedSyncingSource[request]), nil
+	return src.(crsource.TypedSyncingSource[request]), shouldEngage, nil
 }
 
 // WaitForSync satisfies TypedSyncingSource.

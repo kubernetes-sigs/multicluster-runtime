@@ -360,14 +360,12 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		src := mcsource.TypedKind[client.Object, request](blder.forInput.object, hdler, blder.forInput.clusterFilter, allPredicates...).
 			WithProjection(blder.project(blder.forInput.objectProjection))
 		if ptr.Deref(blder.forInput.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
-			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
+			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if src != nil {
-				if err := blder.ctrl.Watch(src); err != nil {
-					return err
-				}
+			if err := blder.ctrl.Watch(src); err != nil {
+				return err
 			}
 		}
 		if ptr.Deref(blder.forInput.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {
@@ -401,14 +399,12 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		src := mcsource.TypedKind[client.Object, request](own.object, hdler, own.clusterFilter, allPredicates...).
 			WithProjection(blder.project(own.objectProjection))
 		if ptr.Deref(own.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
-			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
+			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if src != nil {
-				if err := blder.ctrl.Watch(src); err != nil {
-					return err
-				}
+			if err := blder.ctrl.Watch(src); err != nil {
+				return err
 			}
 		}
 		if ptr.Deref(own.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {
@@ -427,14 +423,12 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		allPredicates = append(allPredicates, w.predicates...)
 		src := mcsource.TypedKind[client.Object, request](w.obj, w.handler, w.clusterFilter, allPredicates...).WithProjection(blder.project(w.objectProjection))
 		if ptr.Deref(w.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
-			src, err := src.ForCluster("", blder.mgr.GetLocalManager())
+			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {
 				return err
 			}
-			if src != nil {
-				if err := blder.ctrl.Watch(src); err != nil {
-					return err
-				}
+			if err := blder.ctrl.Watch(src); err != nil {
+				return err
 			}
 		}
 		if ptr.Deref(w.engageWithProviderClusters, blder.mgr.GetProvider() != nil) {
