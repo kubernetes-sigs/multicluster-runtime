@@ -170,10 +170,6 @@ func (w *WatchesInput[request]) setObjectProjection(objectProjection objectProje
 	w.objectProjection = objectProjection
 }
 
-func (w *WatchesInput[request]) setClusterFilter(clusterFilter ClusterFilterFunc) {
-	w.clusterFilter = clusterFilter
-}
-
 // Watches defines the type of Object to watch, and configures the ControllerManagedBy to respond to create / delete /
 // update events by *reconciling the object* with the given EventHandler.
 //
@@ -357,7 +353,7 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, blder.forInput.predicates...)
 
-		src := mcsource.TypedKind[client.Object, request](blder.forInput.object, hdler, blder.forInput.clusterFilter, allPredicates...).
+		src := mcsource.TypedKind[client.Object, request](blder.forInput.object, hdler, blder.forInput.getClusterFilter(), allPredicates...).
 			WithProjection(blder.project(blder.forInput.objectProjection))
 		if ptr.Deref(blder.forInput.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
@@ -396,7 +392,8 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		}
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, own.predicates...)
-		src := mcsource.TypedKind[client.Object, request](own.object, hdler, own.clusterFilter, allPredicates...).
+
+		src := mcsource.TypedKind[client.Object, request](own.object, hdler, own.getClusterFilter(), allPredicates...).
 			WithProjection(blder.project(own.objectProjection))
 		if ptr.Deref(own.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
@@ -421,7 +418,8 @@ func (blder *TypedBuilder[request]) doWatch() error {
 	for _, w := range blder.watchesInput {
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, w.predicates...)
-		src := mcsource.TypedKind[client.Object, request](w.obj, w.handler, w.clusterFilter, allPredicates...).WithProjection(blder.project(w.objectProjection))
+
+		src := mcsource.TypedKind[client.Object, request](w.obj, w.handler, w.getClusterFilter(), allPredicates...).WithProjection(blder.project(w.objectProjection))
 		if ptr.Deref(w.engageWithLocalCluster, blder.mgr.GetProvider() == nil) {
 			src, _, err := src.ForCluster("", blder.mgr.GetLocalManager())
 			if err != nil {

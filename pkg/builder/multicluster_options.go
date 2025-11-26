@@ -33,7 +33,14 @@ type ClusterFilterFunc = mcsource.ClusterFilterFunc
 type EngageOptions struct {
 	engageWithLocalCluster     *bool
 	engageWithProviderClusters *bool
-	clusterFilter              ClusterFilterFunc
+	clusterFilter              *ClusterFilterFunc
+}
+
+func (w EngageOptions) getClusterFilter() ClusterFilterFunc {
+	if w.clusterFilter != nil {
+		return *w.clusterFilter
+	}
+	return nil
 }
 
 // WithEngageWithLocalCluster configures whether the controller should engage
@@ -59,7 +66,7 @@ func WithEngageWithProviderClusters(engage bool) EngageOptions {
 // The option applies only if WithEngageWithProviderClusters is true.
 func WithClusterFilter(filter ClusterFilterFunc) EngageOptions {
 	return EngageOptions{
-		clusterFilter: filter,
+		clusterFilter: &filter,
 	}
 }
 
@@ -68,14 +75,15 @@ func WithClusterFilter(filter ClusterFilterFunc) EngageOptions {
 // If is a helper function that wraps WithClusterFilter and has the
 // same constraints and mutually exclusive.
 func WithClustersFromProvider(ctx context.Context, provider multicluster.Provider) EngageOptions {
+	var fn ClusterFilterFunc = func(clusterName string, cluster cluster.Cluster) bool {
+		cl, err := provider.Get(ctx, clusterName)
+		if err != nil {
+			return false
+		}
+		return cl == cluster
+	}
 	return EngageOptions{
-		clusterFilter: func(clusterName string, cluster cluster.Cluster) bool {
-			cl, err := provider.Get(ctx, clusterName)
-			if err != nil {
-				return false
-			}
-			return cl == cluster
-		},
+		clusterFilter: &fn,
 	}
 }
 
@@ -90,7 +98,8 @@ func (w EngageOptions) ApplyToFor(opts *ForInput) {
 		opts.engageWithProviderClusters = &val
 	}
 	if w.clusterFilter != nil {
-		opts.clusterFilter = w.clusterFilter
+		val := *w.clusterFilter
+		opts.clusterFilter = &val
 	}
 }
 
@@ -105,7 +114,8 @@ func (w EngageOptions) ApplyToOwns(opts *OwnsInput) {
 		opts.engageWithProviderClusters = &val
 	}
 	if w.clusterFilter != nil {
-		opts.clusterFilter = w.clusterFilter
+		val := *w.clusterFilter
+		opts.clusterFilter = &val
 	}
 }
 
@@ -118,7 +128,7 @@ func (w EngageOptions) ApplyToWatches(opts untypedWatchesInput) {
 		opts.setEngageWithProviderClusters(*w.engageWithProviderClusters)
 	}
 	if w.clusterFilter != nil {
-		opts.setClusterFilter(w.clusterFilter)
+		opts.setClusterFilter(*w.clusterFilter)
 	}
 }
 
@@ -128,4 +138,8 @@ func (w *WatchesInput[request]) setEngageWithLocalCluster(engage bool) {
 
 func (w *WatchesInput[request]) setEngageWithProviderClusters(engage bool) {
 	w.engageWithProviderClusters = &engage
+}
+
+func (w *WatchesInput[request]) setClusterFilter(clusterFilter ClusterFilterFunc) {
+	w.clusterFilter = &clusterFilter
 }
