@@ -36,6 +36,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -49,6 +50,7 @@ import (
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 	mcsource "sigs.k8s.io/multicluster-runtime/pkg/source"
+	"sigs.k8s.io/multicluster-runtime/providers/clusters"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -604,7 +606,156 @@ var _ = Describe("application", func() {
 			}).Should(BeTrue())
 		})
 	})
+
+	Describe("filter engaged clusters when a filter is set", func() {
+		var mgr mcmanager.Manager
+		var provider *clusters.Provider
+		filterFunctionCalled := &atomic.Bool{}
+		reconciled := &atomic.Bool{}
+		BeforeEach(func() {
+			filterFunctionCalled.Store(false)
+			reconciled.Store(false)
+			provider = clusters.New()
+			var err error
+			mgr, err = mcmanager.New(cfg, provider, mcmanager.Options{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should call the filter when local cluster is engaged but not prevent reconciling", func(ctx SpecContext) {
+			By("adding a controller to the manager", func() {
+				err := ControllerManagedBy(mgr).
+					For(&appsv1.Deployment{},
+						WithClusterFilter(func(clusterName string, cluster cluster.Cluster) bool {
+							// this filter should be applied
+							filterFunctionCalled.Store(true)
+							return false
+						}),
+						WithEngageWithLocalCluster(true),
+					).
+					Named("cluster-filter-local").
+					Complete(mcreconcile.Func(func(ctx context.Context, req mcreconcile.Request) (reconcile.Result, error) {
+						reconciled.Store(true)
+						return reconcile.Result{}, nil
+					}))
+				Expect(err).NotTo(HaveOccurred())
+			})
+			By("starting the manager", func() {
+				go func() {
+					defer GinkgoRecover()
+					Expect(mgr.Start(ctx)).NotTo(HaveOccurred())
+				}()
+			})
+			By("Creating a Deployment", func() {
+				dep := &appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "deploy-name-local",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"foo": "bar"},
+						},
+						Template: corev1.PodTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"foo": "bar"}},
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "nginx",
+										Image: "nginx",
+									},
+								},
+							},
+						},
+					},
+				}
+				err := mgr.GetLocalManager().GetClient().Create(ctx, dep)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Eventually(func() bool {
+				return reconciled.Load()
+			}, "10s").Should(BeTrue())
+
+			Expect(filterFunctionCalled.Load()).To(BeTrue())
+		})
+
+		It("should respect the filter when provider clusters are engaged", func(ctx SpecContext) {
+			By("adding the local manager as cluster to the provider", func() {
+				noopCluster := &noopStartCluster{
+					Cluster: mgr.GetLocalManager(),
+				}
+
+				Expect(provider.Add(ctx, "local", noopCluster)).NotTo(HaveOccurred())
+			})
+			By("adding a controller to the manager", func() {
+				err := ControllerManagedBy(mgr).
+					For(&appsv1.Deployment{},
+						WithClusterFilter(func(clusterName string, cluster cluster.Cluster) bool {
+							// this filter should be applied
+							filterFunctionCalled.Store(true)
+							return true
+						}),
+					).
+					Named("cluster-filter-non-local").
+					Complete(mcreconcile.Func(func(ctx context.Context, req mcreconcile.Request) (reconcile.Result, error) {
+						reconciled.Store(true)
+						return reconcile.Result{}, nil
+					}))
+				Expect(err).NotTo(HaveOccurred())
+			})
+			By("starting the manager", func() {
+				go func() {
+					defer GinkgoRecover()
+					Expect(mgr.Start(ctx)).NotTo(HaveOccurred())
+				}()
+			})
+			By("Creating a Deployment", func() {
+				dep := &appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "deploy-name-non-local",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"foo": "bar"},
+						},
+						Template: corev1.PodTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"foo": "bar"}},
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "nginx",
+										Image: "nginx",
+									},
+								},
+							},
+						},
+					},
+				}
+				err := mgr.GetLocalManager().GetClient().Create(ctx, dep)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Eventually(func() bool {
+				return reconciled.Load()
+			}, "10s").Should(BeTrue())
+
+			Expect(filterFunctionCalled.Load()).To(BeTrue())
+		})
+	})
 })
+
+// noopStartCluster is a cluster.Cluster that does nothing on Start.
+// Used to wrap the local manager when adding to a provider to avoid
+// starting it twice.
+type noopStartCluster struct {
+	cluster.Cluster
+}
+
+func (n *noopStartCluster) Start(ctx context.Context) error {
+	<-ctx.Done()
+	return nil
+}
 
 // newNonTypedOnlyCache returns a new cache that wraps the normal cache,
 // returning an error if normal, typed objects have informers requested.
@@ -744,9 +895,8 @@ type fakeType struct {
 func (*fakeType) GetObjectKind() schema.ObjectKind { return nil }
 func (*fakeType) DeepCopyObject() runtime.Object   { return nil }
 
-func must[T any](x T, err error) T {
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred())
-	}
+func must[T any](x T, b bool, err error) T {
+	Expect(err).NotTo(HaveOccurred())
+	Expect(b).To(BeTrue())
 	return x
 }

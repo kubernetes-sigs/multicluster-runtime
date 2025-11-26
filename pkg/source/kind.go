@@ -38,6 +38,9 @@ import (
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 )
 
+// ClusterFilterFunc is a function that filters clusters.
+type ClusterFilterFunc func(clusterName string, cluster cluster.Cluster) bool
+
 // Kind creates a KindSource with the given cache provider.
 func Kind[object client.Object](
 	obj object,
@@ -63,11 +66,12 @@ func TypedKind[object client.Object, request mcreconcile.ClusterAware[request]](
 }
 
 type kind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
-	obj        object
-	handler    mchandler.TypedEventHandlerFunc[object, request]
-	predicates []predicate.TypedPredicate[object]
-	project    func(cluster.Cluster, object) (object, error)
-	resync     time.Duration
+	obj           object
+	handler       mchandler.TypedEventHandlerFunc[object, request]
+	predicates    []predicate.TypedPredicate[object]
+	project       func(cluster.Cluster, object) (object, error)
+	resync        time.Duration
+	clusterFilter ClusterFilterFunc
 }
 
 type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
@@ -89,10 +93,22 @@ func (k *kind[object, request]) WithProjection(project func(cluster.Cluster, obj
 	return k
 }
 
-func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crsource.TypedSource[request], error) {
+func (k *kind[object, request]) WithClusterFilter(filter ClusterFilterFunc) TypedSyncingSource[object, request] {
+	k.clusterFilter = filter
+	return k
+}
+
+func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crsource.TypedSource[request], bool, error) {
 	obj, err := k.project(cl, k.obj)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	// A valid TypedSource must always be returned, even if it shouldn't
+	// engage based on the filter to allow engaging with the local
+	// cluster.
+	shouldEngage := true
+	if k.clusterFilter != nil {
+		shouldEngage = k.clusterFilter(name, cl)
 	}
 	return &clusterKind[object, request]{
 		clusterName: name,
@@ -101,15 +117,15 @@ func (k *kind[object, request]) ForCluster(name string, cl cluster.Cluster) (crs
 		h:           k.handler(name, cl),
 		preds:       k.predicates,
 		resync:      k.resync,
-	}, nil
+	}, shouldEngage, nil
 }
 
-func (k *kind[object, request]) SyncingForCluster(name string, cl cluster.Cluster) (crsource.TypedSyncingSource[request], error) {
-	src, err := k.ForCluster(name, cl)
+func (k *kind[object, request]) SyncingForCluster(name string, cl cluster.Cluster) (crsource.TypedSyncingSource[request], bool, error) {
+	src, shouldEngage, err := k.ForCluster(name, cl)
 	if err != nil {
-		return nil, err
+		return nil, shouldEngage, err
 	}
-	return src.(crsource.TypedSyncingSource[request]), nil
+	return src.(crsource.TypedSyncingSource[request]), shouldEngage, nil
 }
 
 // WaitForSync satisfies TypedSyncingSource.
