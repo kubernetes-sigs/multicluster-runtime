@@ -16,11 +16,31 @@ limitations under the License.
 
 package builder
 
+import (
+	"context"
+
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
+
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
+	mcsource "sigs.k8s.io/multicluster-runtime/pkg/source"
+)
+
+// ClusterFilterFunc is a function that filters clusters.
+type ClusterFilterFunc = mcsource.ClusterFilterFunc
+
 // EngageOptions configures how the controller should engage with clusters
 // when a provider is configured.
 type EngageOptions struct {
 	engageWithLocalCluster     *bool
 	engageWithProviderClusters *bool
+	clusterFilter              *ClusterFilterFunc
+}
+
+func (w EngageOptions) getClusterFilter() ClusterFilterFunc {
+	if w.clusterFilter != nil {
+		return *w.clusterFilter
+	}
+	return nil
 }
 
 // WithEngageWithLocalCluster configures whether the controller should engage
@@ -41,6 +61,32 @@ func WithEngageWithProviderClusters(engage bool) EngageOptions {
 	}
 }
 
+// WithClusterFilter configures a filter function that determines
+// which clusters the controller should engage with.
+// The option applies only if WithEngageWithProviderClusters is true.
+func WithClusterFilter(filter ClusterFilterFunc) EngageOptions {
+	return EngageOptions{
+		clusterFilter: &filter,
+	}
+}
+
+// WithClustersFromProvider configures the controller to only engage with
+// the clusters provided by the given provider.
+// If is a helper function that wraps WithClusterFilter and has the
+// same constraints and mutually exclusive.
+func WithClustersFromProvider(ctx context.Context, provider multicluster.Provider) EngageOptions {
+	var fn ClusterFilterFunc = func(clusterName string, cluster cluster.Cluster) bool {
+		cl, err := provider.Get(ctx, clusterName)
+		if err != nil {
+			return false
+		}
+		return cl == cluster
+	}
+	return EngageOptions{
+		clusterFilter: &fn,
+	}
+}
+
 // ApplyToFor applies this configuration to the given ForInput options.
 func (w EngageOptions) ApplyToFor(opts *ForInput) {
 	if w.engageWithLocalCluster != nil {
@@ -50,6 +96,10 @@ func (w EngageOptions) ApplyToFor(opts *ForInput) {
 	if w.engageWithProviderClusters != nil {
 		val := *w.engageWithProviderClusters
 		opts.engageWithProviderClusters = &val
+	}
+	if w.clusterFilter != nil {
+		val := *w.clusterFilter
+		opts.clusterFilter = &val
 	}
 }
 
@@ -63,6 +113,10 @@ func (w EngageOptions) ApplyToOwns(opts *OwnsInput) {
 		val := *w.engageWithProviderClusters
 		opts.engageWithProviderClusters = &val
 	}
+	if w.clusterFilter != nil {
+		val := *w.clusterFilter
+		opts.clusterFilter = &val
+	}
 }
 
 // ApplyToWatches applies this configuration to the given WatchesInput options.
@@ -73,6 +127,9 @@ func (w EngageOptions) ApplyToWatches(opts untypedWatchesInput) {
 	if w.engageWithProviderClusters != nil {
 		opts.setEngageWithProviderClusters(*w.engageWithProviderClusters)
 	}
+	if w.clusterFilter != nil {
+		opts.setClusterFilter(*w.clusterFilter)
+	}
 }
 
 func (w *WatchesInput[request]) setEngageWithLocalCluster(engage bool) {
@@ -81,4 +138,8 @@ func (w *WatchesInput[request]) setEngageWithLocalCluster(engage bool) {
 
 func (w *WatchesInput[request]) setEngageWithProviderClusters(engage bool) {
 	w.engageWithProviderClusters = &engage
+}
+
+func (w *WatchesInput[request]) setClusterFilter(clusterFilter ClusterFilterFunc) {
+	w.clusterFilter = &clusterFilter
 }

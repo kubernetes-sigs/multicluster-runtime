@@ -43,7 +43,7 @@ type Source = TypedSource[client.Object, mcreconcile.Request]
 //
 // Users may build their own Source implementations.
 type TypedSource[object client.Object, request mcreconcile.ClusterAware[request]] interface {
-	ForCluster(string, cluster.Cluster) (source.TypedSource[request], error)
+	ForCluster(string, cluster.Cluster) (source.TypedSource[request], bool, error)
 }
 
 // SyncingSource is a source that needs syncing prior to being usable. The controller
@@ -54,6 +54,7 @@ type SyncingSource[object client.Object] TypedSyncingSource[object, mcreconcile.
 // will call its WaitForSync prior to starting workers.
 type TypedSyncingSource[object client.Object, request mcreconcile.ClusterAware[request]] interface {
 	TypedSource[object, request]
-	SyncingForCluster(string, cluster.Cluster) (source.TypedSyncingSource[request], error)
+	SyncingForCluster(string, cluster.Cluster) (source.TypedSyncingSource[request], bool, error)
 	WithProjection(func(cluster.Cluster, object) (object, error)) TypedSyncingSource[object, request]
+	WithClusterFilter(ClusterFilterFunc) TypedSyncingSource[object, request]
 }
