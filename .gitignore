@@ -30,3 +30,5 @@ hack/tools/bin
 # IDE files
 .vscode
 .idea
+
+*.kubeconfig
