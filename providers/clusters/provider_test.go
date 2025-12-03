@@ -91,14 +91,18 @@ var _ = Describe("Provider Clusters", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "Failed to create new cluster")
 
 			// Add it to the provider
-			err = provider.Add(ctx, "new-cluster", cl, manager)
+			err = provider.Add(ctx, "new-cluster", cl)
 			Expect(err).NotTo(HaveOccurred(), "Failed to add new cluster to provider")
 		})
 
 		// Now the manager has engaged the cluster and operators will be
 		// able to interact with the cluster
-		retrieved, err := manager.GetCluster(ctx, "new-cluster")
-		Expect(err).NotTo(HaveOccurred(), "Failed to get new cluster from manager")
+		var retrieved cluster.Cluster
+		Eventually(func(g Gomega) {
+			var err error
+			retrieved, err = manager.GetCluster(ctx, "new-cluster")
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to get new cluster from manager")
+		}, "1m", "1s").Should(Succeed())
 		Expect(retrieved).NotTo(BeNil(), "Expected new cluster to be returned")
 		Expect(retrieved).To(Equal(cl), "Expected cluster added to provider to be the same as the one retrieved from the manager")
 

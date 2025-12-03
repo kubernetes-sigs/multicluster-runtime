@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-configmap
+  labels:
+    example.io/propagate: 'true'
+data:
+  hello: world

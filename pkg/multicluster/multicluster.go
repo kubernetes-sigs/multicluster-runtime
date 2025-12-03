@@ -27,6 +27,7 @@ import (
 // can engage and disengage when clusters are added or removed at runtime.
 type Aware interface {
 	// Engage gets called when the component should start operations for the given Cluster.
+	// The passed Cluster is expected to be started and ready to be interacted with.
 	// The given context is tied to the Cluster's lifecycle and will be cancelled when the
 	// Cluster is removed or an error occurs.
 	//
@@ -46,9 +47,11 @@ type Aware interface {
 }
 
 // Provider allows to retrieve clusters by name. The provider is responsible for discovering
-// and managing the lifecycle of each cluster, calling `Engage` on the manager
-// it is run against whenever a new cluster is discovered and cancelling the
-// context used on engage when a cluster is unregistered.
+// and managing the lifecycle of clusters it discovers and engaging the manager with them.
+//
+// Providers must ensure that clusters are started before engaging the manager with them,
+// as well as that the context used to start the cluster and engage the manager is cancelled
+// when the cluster is removed or an error occurs.
 //
 // Example: A Cluster API provider would be responsible for discovering and
 // managing clusters that are backed by Cluster API resources, which can live
@@ -62,6 +65,12 @@ type Provider interface {
 
 	// IndexField indexes the given object by the given field on all engaged
 	// clusters, current and future.
+	//
+	// When indexing a field the index must be applied to all existing
+	// and future clusters.
+	//
+	// When implementing a provider that yields clusters with a shared
+	// cache ensure that the indexing requests are deduplicated.
 	IndexField(ctx context.Context, obj client.Object, field string, extractValue client.IndexerFunc) error
 }
 

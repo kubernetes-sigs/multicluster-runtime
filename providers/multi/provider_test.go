@@ -96,8 +96,15 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		})
 
 		By("Adding the first namespace provider before starting the manager", func() {
+			_, ok := provider.GetProvider("cloud1")
+			Expect(ok).To(BeFalse())
+
 			err := provider.AddProvider("cloud1", cloud1provider)
 			Expect(err).NotTo(HaveOccurred())
+
+			returnedProvider, ok := provider.GetProvider("cloud1")
+			Expect(ok).To(BeTrue())
+			Expect(returnedProvider).To(Equal(cloud1provider))
 		})
 
 		By("Setting up the controller feeding the animals", func() {
@@ -177,6 +184,9 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		By("Adding the second namespace provider after starting the manager", func() {
 			err := provider.AddProvider("cloud2", cloud2provider)
 			Expect(err).NotTo(HaveOccurred())
+
+			providerNames := provider.ProviderNames()
+			Expect(providerNames).To(ContainElements("cloud1", "cloud2"))
 		})
 	})
 

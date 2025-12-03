@@ -65,6 +65,9 @@ type Options struct {
 	// "my-context" would result in a cluster name
 	// "/a/b/c/kubeconfig.yaml+my-context".
 	Separator string
+
+	// ClusterOptions is the list of options to pass to the cluster object.
+	ClusterOptions []cluster.Option
 }
 
 // DefaultKubeconfigGlobs are the default glob patterns when searching

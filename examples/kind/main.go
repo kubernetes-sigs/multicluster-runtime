@@ -41,7 +41,7 @@ func main() {
 	entryLog := ctrllog.Log.WithName("entrypoint")
 	ctx := signals.SetupSignalHandler()
 
-	provider := kind.New()
+	provider := kind.New(kind.Options{Prefix: "fleet-"})
 	mgr, err := mcmanager.New(ctrl.GetConfigOrDie(), provider, mcmanager.Options{})
 	if err != nil {
 		entryLog.Error(err, "unable to create manager")
