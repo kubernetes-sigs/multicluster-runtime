@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -33,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	mccontext "sigs.k8s.io/multicluster-runtime/pkg/context"
+	"sigs.k8s.io/multicluster-runtime/pkg/manager/peers"
+	"sigs.k8s.io/multicluster-runtime/pkg/manager/sharder"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
@@ -130,8 +133,7 @@ type Option func(*mcManager)
 type mcManager struct {
 	manager.Manager
 	provider multicluster.Provider
-
-	mcRunnables []multicluster.Aware
+	engine   *synchronizationEngine
 }
 
 // New returns a new Manager for creating Controllers. The provider is used to
@@ -147,13 +149,31 @@ func New(config *rest.Config, provider multicluster.Provider, opts manager.Optio
 
 // WithMultiCluster wraps a host manager to run multi-cluster controllers.
 func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider, mcOpts ...Option) (Manager, error) {
-	m := &mcManager{Manager: mgr, provider: provider}
+	cfg := SynchronizationConfig{
+		FenceNS: "kube-system", FencePrefix: "mcr-shard", PerClusterLease: true,
+		LeaseDuration: 20 * time.Second, LeaseRenew: 10 * time.Second, FenceThrottle: 750 * time.Millisecond,
+		PeerPrefix: "mcr-peer", PeerWeight: 1, Probe: 5 * time.Second, Rehash: 15 * time.Second,
+	}
+
+	pr := peers.NewLeaseRegistry(mgr.GetClient(), cfg.FenceNS, cfg.PeerPrefix, "", cfg.PeerWeight, mgr.GetLogger())
+	self := pr.Self()
+
+	eng := newSynchronizationEngine(
+		mgr.GetClient(), mgr.GetLogger(),
+		sharder.NewHRW(), pr, self, cfg,
+	)
+
+	m := &mcManager{Manager: mgr, provider: provider, engine: eng}
 
 	// Apply options before wiring the Runnable so overrides take effect early.
 	for _, o := range mcOpts {
 		o(m)
 	}
 
+	// Start synchronization loop as a manager Runnable.
+	if err := mgr.Add(eng.Runnable()); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 
@@ -192,28 +212,15 @@ func (m *mcManager) GetProvider() multicluster.Provider {
 
 // Add will set requested dependencies on the component, and cause the component to be
 // started when Start is called.
-func (m *mcManager) Add(r Runnable) (err error) {
-	m.mcRunnables = append(m.mcRunnables, r)
-	defer func() {
-		if err != nil {
-			m.mcRunnables = m.mcRunnables[:len(m.mcRunnables)-1]
-		}
-	}()
-
+func (m *mcManager) Add(r Runnable) error {
+	m.engine.AddRunnable(r)
 	return m.Manager.Add(r)
 }
 
 // Engage gets called when the component should start operations for the given
 // Cluster. ctx is cancelled when the cluster is disengaged.
 func (m *mcManager) Engage(ctx context.Context, name string, cl cluster.Cluster) error {
-	ctx, cancel := context.WithCancel(ctx) //nolint:govet // cancel is called in the error case only.
-	for _, r := range m.mcRunnables {
-		if err := r.Engage(ctx, name, cl); err != nil {
-			cancel()
-			return fmt.Errorf("failed to engage cluster %q: %w", name, err)
-		}
-	}
-	return nil //nolint:govet // cancel is called in the error case only.
+	return m.engine.Engage(ctx, name, cl)
 }
 
 func (m *mcManager) GetManager(ctx context.Context, clusterName string) (manager.Manager, error) {

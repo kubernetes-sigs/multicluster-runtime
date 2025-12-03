@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcr-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcr-demo
+  namespace: mcr-demo
+---
+# Allow reading/writing peer Leases in kube-system
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcr-lease
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get","list","watch","create","update","patch","delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcr-lease
+subjects:
+- kind: ServiceAccount
+  name: mcr-demo
+  namespace: mcr-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcr-lease
+---
+# Allow the example to read namespaces/configmaps (namespace provider + demo controller)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcr-example
+rules:
+- apiGroups: [""]
+  resources: ["namespaces","configmaps"]
+  verbs: ["get","list","watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcr-example
+subjects:
+- kind: ServiceAccount
+  name: mcr-demo
+  namespace: mcr-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcr-example

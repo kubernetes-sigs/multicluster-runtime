@@ -154,6 +154,25 @@ func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error 
 				}
 			}
 			clusterCtx, cancel := context.WithCancel(ctx)
+			// remember early so GetCluster can resolve during initial events
+			p.lock.Lock()
+			p.clusters[clusterName] = cl
+			p.cancelFns[clusterName] = cancel
+			p.lock.Unlock()
+
+			p.log.Info("Added new cluster", "cluster", clusterName)
+
+			// engage before starting cache so handlers are registered for initial adds
+			if err := p.mcAware.Engage(clusterCtx, clusterName, cl); err != nil {
+				log.Error(err, "failed to engage manager")
+				p.lock.Lock()
+				delete(p.clusters, clusterName)
+				delete(p.cancelFns, clusterName)
+				p.lock.Unlock()
+				return false, nil
+			}
+
+			// start cluster after engagement; then wait for cache sync
 			go func() {
 				if err := cl.Start(clusterCtx); err != nil {
 					log.Error(err, "failed to start cluster")
@@ -163,20 +182,6 @@ func (p *Provider) Start(ctx context.Context, mcAware multicluster.Aware) error 
 			if !cl.GetCache().WaitForCacheSync(ctx) {
 				cancel()
 				log.Info("failed to sync cache")
-				return false, nil
-			}
-
-			// remember
-			p.lock.Lock()
-			p.clusters[clusterName] = cl
-			p.cancelFns[clusterName] = cancel
-			p.lock.Unlock()
-
-			p.log.Info("Added new cluster", "cluster", clusterName)
-
-			// engage manager
-			if err := p.mcAware.Engage(clusterCtx, clusterName, cl); err != nil {
-				log.Error(err, "failed to engage manager")
 				p.lock.Lock()
 				delete(p.clusters, clusterName)
 				delete(p.cancelFns, clusterName)

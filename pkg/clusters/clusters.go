@@ -111,6 +111,15 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 		return err
 	}
 
+	// Engage before starting cache so handlers are registered for initial adds.
+	if aware != nil {
+		if err := aware.Engage(ctx, clusterName, cl); err != nil {
+			defer c.Remove(clusterName)
+			return err
+		}
+	}
+
+	// Start cluster after engagement and wait for cache sync.
 	go func() {
 		defer c.Remove(clusterName)
 		if err := cl.Start(ctx); err != nil {
@@ -126,13 +135,6 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName string, cl T, aware m
 	if !cl.GetCache().WaitForCacheSync(waitCacheCtx) {
 		defer c.Remove(clusterName)
 		return fmt.Errorf("timed out after %q waiting for cache to sync for cluster %s", c.WaitCacheTimeout, clusterName)
-	}
-
-	if aware != nil {
-		if err := aware.Engage(ctx, clusterName, cl); err != nil {
-			defer c.Remove(clusterName)
-			return err
-		}
 	}
 
 	c.lock.RLock()

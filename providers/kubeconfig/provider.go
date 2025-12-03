@@ -279,36 +279,40 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, clusterName strin
 	// Create a context that will be canceled when this cluster is removed
 	clusterCtx, cancel := context.WithCancel(ctx)
 
-	// Start the cluster
-	go func() {
-		if err := cl.Start(clusterCtx); err != nil {
-			log.Error(err, "Failed to start cluster")
-		}
-	}()
-
-	// Engage cluster so that the manager can start operating on the cluster
-	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
-		cancel()
-		return fmt.Errorf("failed to engage manager: %w", err)
-	}
-
-	log.Info("Successfully engaged manager")
-
-	// Wait for cache to be ready
-	log.Info("Waiting for cluster cache to be ready")
-	if !cl.GetCache().WaitForCacheSync(clusterCtx) {
-		cancel()
-		return fmt.Errorf("failed to wait for cache sync")
-	}
-	log.Info("Cluster cache is ready")
-
-	// Store the cluster
+	// Store the cluster early so mgr.GetCluster can find it during initial events.
 	p.setCluster(clusterName, activeCluster{
 		Cluster: cl,
 		Context: clusterCtx,
 		Cancel:  cancel,
 		Hash:    hashStr,
 	})
+
+	// Engage cluster first so watchers are registered before the cache starts.
+	if err := p.mgr.Engage(clusterCtx, clusterName, cl); err != nil {
+		cancel()
+		// cleanup stored cluster on failure
+		p.removeCluster(clusterName)
+		return fmt.Errorf("failed to engage manager: %w", err)
+	}
+
+	log.Info("Successfully engaged manager")
+
+	// Start the cluster after engagement so initial add events are observed.
+	go func() {
+		if err := cl.Start(clusterCtx); err != nil {
+			log.Error(err, "Failed to start cluster")
+		}
+	}()
+
+	// Wait for cache to be ready
+	log.Info("Waiting for cluster cache to be ready")
+	if !cl.GetCache().WaitForCacheSync(clusterCtx) {
+		cancel()
+		// cleanup stored cluster on failure
+		p.removeCluster(clusterName)
+		return fmt.Errorf("failed to wait for cache sync")
+	}
+	log.Info("Cluster cache is ready")
 	log.Info("Successfully added cluster")
 
 	return nil

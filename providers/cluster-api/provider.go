@@ -204,6 +204,21 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 		}
 	}
 	clusterCtx, cancel := context.WithCancel(ctx)
+	// remember early so GetCluster can resolve during initial events
+	p.clusters[key] = cl
+	p.cancelFns[key] = cancel
+
+	p.log.Info("Added new cluster")
+
+	// engage before starting cache so handlers are registered for initial adds
+	if err := p.mcAware.Engage(clusterCtx, key, cl); err != nil {
+		log.Error(err, "failed to engage manager")
+		delete(p.clusters, key)
+		delete(p.cancelFns, key)
+		return reconcile.Result{}, err
+	}
+
+	// start cluster after engagement; then wait for cache sync
 	go func() {
 		if err := cl.Start(clusterCtx); err != nil {
 			log.Error(err, "failed to start cluster")
@@ -212,21 +227,9 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	}()
 	if !cl.GetCache().WaitForCacheSync(ctx) {
 		cancel()
-		return reconcile.Result{}, fmt.Errorf("failed to sync cache")
-	}
-
-	// remember.
-	p.clusters[key] = cl
-	p.cancelFns[key] = cancel
-
-	p.log.Info("Added new cluster")
-
-	// engage manager.
-	if err := p.mcAware.Engage(clusterCtx, key, cl); err != nil {
-		log.Error(err, "failed to engage manager")
 		delete(p.clusters, key)
 		delete(p.cancelFns, key)
-		return reconcile.Result{}, err
+		return reconcile.Result{}, fmt.Errorf("failed to sync cache")
 	}
 
 	return reconcile.Result{}, nil
