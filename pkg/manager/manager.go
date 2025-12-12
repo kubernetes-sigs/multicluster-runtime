@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	mccontext "sigs.k8s.io/multicluster-runtime/pkg/context"
+	"sigs.k8s.io/multicluster-runtime/pkg/manager/coordinator/basic"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
@@ -130,8 +131,7 @@ type Option func(*mcManager)
 type mcManager struct {
 	manager.Manager
 	provider multicluster.Provider
-
-	mcRunnables []multicluster.Aware
+	coord    Coordinator
 }
 
 // New returns a new Manager for creating Controllers. The provider is used to
@@ -154,6 +154,17 @@ func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider, mcOpt
 		o(m)
 	}
 
+	// Default coordinator engages everything unless overridden.
+	if m.coord == nil {
+		m.coord = basic.New()
+	}
+
+	// Start coordinator background loop if any.
+	if run := m.coord.Runnable(); run != nil {
+		if err := mgr.Add(run); err != nil {
+			return nil, err
+		}
+	}
 	return m, nil
 }
 
@@ -192,28 +203,15 @@ func (m *mcManager) GetProvider() multicluster.Provider {
 
 // Add will set requested dependencies on the component, and cause the component to be
 // started when Start is called.
-func (m *mcManager) Add(r Runnable) (err error) {
-	m.mcRunnables = append(m.mcRunnables, r)
-	defer func() {
-		if err != nil {
-			m.mcRunnables = m.mcRunnables[:len(m.mcRunnables)-1]
-		}
-	}()
-
+func (m *mcManager) Add(r Runnable) error {
+	m.coord.AddRunnable(r)
 	return m.Manager.Add(r)
 }
 
 // Engage gets called when the component should start operations for the given
 // Cluster. ctx is cancelled when the cluster is disengaged.
 func (m *mcManager) Engage(ctx context.Context, name string, cl cluster.Cluster) error {
-	ctx, cancel := context.WithCancel(ctx) //nolint:govet // cancel is called in the error case only.
-	for _, r := range m.mcRunnables {
-		if err := r.Engage(ctx, name, cl); err != nil {
-			cancel()
-			return fmt.Errorf("failed to engage cluster %q: %w", name, err)
-		}
-	}
-	return nil //nolint:govet // cancel is called in the error case only.
+	return m.coord.Engage(ctx, name, cl)
 }
 
 func (m *mcManager) GetManager(ctx context.Context, clusterName string) (manager.Manager, error) {
