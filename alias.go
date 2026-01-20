@@ -101,8 +101,8 @@ var (
 	// NewControllerManagedBy returns a new controller builder that will be started by the provided Manager.
 	NewControllerManagedBy = mcbuilder.ControllerManagedBy
 
-	// NewWebhookManagedBy is now a generic function in controller-runtime v0.23.0.
-	// Use builder.WebhookManagedBy[T](mgr, obj) directly instead of this alias.
+	// NewWebhookManagedBy returns a new webhook builder that will be started by the provided Manager.
+	NewWebhookManagedBy = mcbuilder.WebhookManagedBy
 
 	// NewManager returns a new Manager for creating Controllers.
 	// Note that if ContentType in the given config is not set, "application/vnd.kubernetes.protobuf"
