@@ -70,6 +70,7 @@ func (blder *WebhookBuilder) For(apiType runtime.Object) *WebhookBuilder {
 }
 
 // WithDefaulter takes an admission.CustomDefaulter interface, a MutatingWebhook with the provided opts (admission.DefaulterOption)
+// will be wired for this type.
 func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder {
 	blder.customDefaulter = defaulter
 	blder.customDefaulterOpts = opts
