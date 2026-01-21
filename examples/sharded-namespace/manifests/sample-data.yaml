@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zoo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elephant
+  namespace: zoo
+data: { a: "1" }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lion
+  namespace: zoo
+data: { a: "1" }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jungle
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monkey
+  namespace: jungle
+data: { a: "1" }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: island
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bird
+  namespace: island
+data: { a: "1" }
