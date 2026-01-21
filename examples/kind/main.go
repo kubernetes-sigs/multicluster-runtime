@@ -69,10 +69,12 @@ func main() {
 					return reconcile.Result{}, err
 				}
 
-				cl.GetEventRecorderFor("kind-multicluster-configmaps").Event(
+				cl.GetEventRecorder("kind-multicluster-configmaps").Eventf(
 					cm,
+					nil,
 					corev1.EventTypeNormal,
 					"ConfigMapFound",
+					"ConfigMapReconcile",
 					"ConfigMap found in cluster "+req.ClusterName,
 				)
 

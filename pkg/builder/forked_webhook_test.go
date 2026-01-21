@@ -751,7 +751,7 @@ func (*TestCustomDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	return nil
 }
 
-var _ admission.CustomDefaulter = &TestCustomDefaulter{}
+var _ admission.Defaulter[runtime.Object] = &TestCustomDefaulter{}
 
 // TestCustomValidator.
 
@@ -815,4 +815,4 @@ func (*TestCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Obje
 	return nil, nil
 }
 
-var _ admission.CustomValidator = &TestCustomValidator{}
+var _ admission.Validator[runtime.Object] = &TestCustomValidator{}

@@ -39,9 +39,9 @@ import (
 // WebhookBuilder builds a Webhook.
 type WebhookBuilder struct {
 	apiType             runtime.Object
-	customDefaulter     admission.CustomDefaulter
+	customDefaulter     admission.Defaulter[runtime.Object]
 	customDefaulterOpts []admission.DefaulterOption
-	customValidator     admission.CustomValidator
+	customValidator     admission.Validator[runtime.Object]
 	customPath          string
 	gvk                 schema.GroupVersionKind
 	mgr                 manager.Manager
@@ -69,16 +69,16 @@ func (blder *WebhookBuilder) For(apiType runtime.Object) *WebhookBuilder {
 	return blder
 }
 
-// WithDefaulter takes an admission.CustomDefaulter interface, a MutatingWebhook with the provided opts (admission.DefaulterOption)
+// WithDefaulter takes an admission.Defaulter[runtime.Object], a MutatingWebhook with the provided opts (admission.DefaulterOption)
 // will be wired for this type.
-func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder {
+func (blder *WebhookBuilder) WithDefaulter(defaulter admission.Defaulter[runtime.Object], opts ...admission.DefaulterOption) *WebhookBuilder {
 	blder.customDefaulter = defaulter
 	blder.customDefaulterOpts = opts
 	return blder
 }
 
-// WithValidator takes a admission.CustomValidator interface, a ValidatingWebhook will be wired for this type.
-func (blder *WebhookBuilder) WithValidator(validator admission.CustomValidator) *WebhookBuilder {
+// WithValidator takes a admission.Validator[runtime.Object], a ValidatingWebhook will be wired for this type.
+func (blder *WebhookBuilder) WithValidator(validator admission.Validator[runtime.Object]) *WebhookBuilder {
 	blder.customValidator = validator
 	return blder
 }
@@ -239,7 +239,7 @@ func (blder *WebhookBuilder) registerValidatingWebhook() error {
 
 func (blder *WebhookBuilder) getValidatingWebhook() *admission.Webhook {
 	if validator := blder.customValidator; validator != nil {
-		w := admission.WithCustomValidator(blder.mgr.GetScheme(), blder.apiType, validator)
+		w := admission.WithValidator(blder.mgr.GetScheme(), validator)
 		if blder.recoverPanic != nil {
 			w = w.WithRecoverPanic(*blder.recoverPanic)
 		}
