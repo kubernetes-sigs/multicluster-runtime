@@ -71,14 +71,14 @@ func (blder *WebhookBuilder) For(apiType runtime.Object) *WebhookBuilder {
 
 // WithDefaulter takes an admission.CustomDefaulter interface, a MutatingWebhook with the provided opts (admission.DefaulterOption)
 // will be wired for this type.
-func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder {
+func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder { //nolint:staticcheck
 	blder.customDefaulter = defaulter
 	blder.customDefaulterOpts = opts
 	return blder
 }
 
 // WithValidator takes a admission.CustomValidator interface, a ValidatingWebhook will be wired for this type.
-func (blder *WebhookBuilder) WithValidator(validator admission.CustomValidator) *WebhookBuilder {
+func (blder *WebhookBuilder) WithValidator(validator admission.CustomValidator) *WebhookBuilder { //nolint:staticcheck
 	blder.customValidator = validator
 	return blder
 }
