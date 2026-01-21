@@ -239,7 +239,9 @@ func (blder *WebhookBuilder) registerValidatingWebhook() error {
 
 func (blder *WebhookBuilder) getValidatingWebhook() *admission.Webhook {
 	if validator := blder.customValidator; validator != nil {
-		w := admission.WithValidator(blder.mgr.GetScheme(), validator)
+		// Using WithCustomValidator because WithValidator[T] requires a concrete type parameter,
+		// but we use Validator[runtime.Object] to support any object type at runtime.
+		w := admission.WithCustomValidator(blder.mgr.GetScheme(), blder.apiType, validator) //nolint:staticcheck
 		if blder.recoverPanic != nil {
 			w = w.WithRecoverPanic(*blder.recoverPanic)
 		}
