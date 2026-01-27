@@ -328,6 +328,56 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		Eventually(provider.ListClusters, "10s").Should(HaveLen(2))
 	})
 
+	It("skips secrets that do not contain kubeconfig data", func() {
+		secretWithoutKubeconfig := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "invalid-secret",
+				Namespace: kubeconfigSecretNamespace,
+				Labels: map[string]string{
+					kubeconfigSecretLabel: "true",
+				},
+			},
+			Data: map[string][]byte{
+				"some-other-key": []byte("some-data"),
+			},
+		}
+		err := localCli.Create(ctx, secretWithoutKubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify the cluster count hasn't changed (secret was skipped)
+		Eventually(provider.ListClusters, "2s").Should(HaveLen(2))
+		Consistently(provider.ListClusters, "10s").Should(HaveLen(2))
+
+		// Clean up
+		err = localCli.Delete(ctx, secretWithoutKubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("skips secrets with empty kubeconfig data", func() {
+		secretWithEmptyKubeconfig := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "empty-secret",
+				Namespace: kubeconfigSecretNamespace,
+				Labels: map[string]string{
+					kubeconfigSecretLabel: "true",
+				},
+			},
+			Data: map[string][]byte{
+				kubeconfigSecretKey: []byte(""),
+			},
+		}
+		err := localCli.Create(ctx, secretWithEmptyKubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify the cluster count hasn't changed (secret was skipped)
+		Eventually(provider.ListClusters, "2s").Should(HaveLen(2))
+		Consistently(provider.ListClusters, "10s").Should(HaveLen(2))
+
+		// Clean up
+		err = localCli.Delete(ctx, secretWithEmptyKubeconfig)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 	AfterAll(func() {
 		By("Stopping the provider, cluster, manager, and controller", func() {
 			cancel()
