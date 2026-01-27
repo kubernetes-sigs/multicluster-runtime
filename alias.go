@@ -20,7 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -103,7 +102,7 @@ var (
 	NewControllerManagedBy = mcbuilder.ControllerManagedBy
 
 	// NewWebhookManagedBy returns a new webhook builder that will be started by the provided Manager.
-	NewWebhookManagedBy = builder.WebhookManagedBy
+	NewWebhookManagedBy = mcbuilder.WebhookManagedBy
 
 	// NewManager returns a new Manager for creating Controllers.
 	// Note that if ContentType in the given config is not set, "application/vnd.kubernetes.protobuf"

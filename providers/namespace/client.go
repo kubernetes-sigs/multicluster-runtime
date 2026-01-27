@@ -110,6 +110,11 @@ func (n *NamespacedClient) Patch(ctx context.Context, obj client.Object, patch c
 	panic("implement the three patch types")
 }
 
+// Apply applies an apply configuration to an object.
+func (n *NamespacedClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return n.Client.Apply(ctx, obj, opts...)
+}
+
 // DeleteAllOf deletes all objects of the given type.
 func (n *NamespacedClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	if ns := obj.GetNamespace(); ns != metav1.NamespaceDefault {
@@ -180,4 +185,9 @@ func (s SubResourceNamespacedClient) Patch(ctx context.Context, obj client.Objec
 	// TODO(sttts): this is not thas easy here. We likely have to support all the different patch types.
 	//              But other than that, this is just an example provider, so ¯\_(ツ)_/¯.
 	panic("implement the three patch types")
+}
+
+// Apply applies an apply configuration to a subresource.
+func (s SubResourceNamespacedClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	return s.client.Apply(ctx, obj, opts...)
 }

@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	mccontext "sigs.k8s.io/multicluster-runtime/pkg/context"
 	"sigs.k8s.io/multicluster-runtime/pkg/manager/coordinator/basic"
@@ -280,4 +281,9 @@ func (p *scopedManager) Start(ctx context.Context) error {
 // GetFieldIndexer returns the field indexer.
 func (p *scopedManager) GetFieldIndexer() client.FieldIndexer {
 	return p.Cluster.GetFieldIndexer()
+}
+
+// GetConverterRegistry returns the converter registry from the local manager.
+func (p *scopedManager) GetConverterRegistry() conversion.Registry {
+	return p.Manager.GetLocalManager().GetConverterRegistry()
 }

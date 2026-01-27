@@ -19,6 +19,7 @@ package namespace
 import (
 	"context"
 
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -48,7 +49,14 @@ func (c *NamespacedCluster) GetClient() client.Client {
 }
 
 // GetEventRecorderFor returns a new EventRecorder for the provided name.
+//
+// Deprecated: this uses the old events API and will be removed in a future release. Please use GetEventRecorder instead.
 func (c *NamespacedCluster) GetEventRecorderFor(name string) record.EventRecorder {
+	panic("implement me")
+}
+
+// GetEventRecorder returns an EventRecorder for the provided name.
+func (c *NamespacedCluster) GetEventRecorder(name string) events.EventRecorder {
 	panic("implement me")
 }
 

@@ -39,9 +39,9 @@ import (
 // WebhookBuilder builds a Webhook.
 type WebhookBuilder struct {
 	apiType             runtime.Object
-	customDefaulter     admission.CustomDefaulter
+	customDefaulter     admission.CustomDefaulter //nolint:staticcheck
 	customDefaulterOpts []admission.DefaulterOption
-	customValidator     admission.CustomValidator
+	customValidator     admission.CustomValidator //nolint:staticcheck
 	customPath          string
 	gvk                 schema.GroupVersionKind
 	mgr                 manager.Manager
@@ -71,14 +71,14 @@ func (blder *WebhookBuilder) For(apiType runtime.Object) *WebhookBuilder {
 
 // WithDefaulter takes an admission.CustomDefaulter interface, a MutatingWebhook with the provided opts (admission.DefaulterOption)
 // will be wired for this type.
-func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder {
+func (blder *WebhookBuilder) WithDefaulter(defaulter admission.CustomDefaulter, opts ...admission.DefaulterOption) *WebhookBuilder { //nolint:staticcheck
 	blder.customDefaulter = defaulter
 	blder.customDefaulterOpts = opts
 	return blder
 }
 
 // WithValidator takes a admission.CustomValidator interface, a ValidatingWebhook will be wired for this type.
-func (blder *WebhookBuilder) WithValidator(validator admission.CustomValidator) *WebhookBuilder {
+func (blder *WebhookBuilder) WithValidator(validator admission.CustomValidator) *WebhookBuilder { //nolint:staticcheck
 	blder.customValidator = validator
 	return blder
 }
@@ -239,7 +239,7 @@ func (blder *WebhookBuilder) registerValidatingWebhook() error {
 
 func (blder *WebhookBuilder) getValidatingWebhook() *admission.Webhook {
 	if validator := blder.customValidator; validator != nil {
-		w := admission.WithCustomValidator(blder.mgr.GetScheme(), blder.apiType, validator)
+		w := admission.WithCustomValidator(blder.mgr.GetScheme(), blder.apiType, validator) //nolint:staticcheck
 		if blder.recoverPanic != nil {
 			w = w.WithRecoverPanic(*blder.recoverPanic)
 		}
@@ -256,7 +256,7 @@ func (blder *WebhookBuilder) registerConversionWebhook() error {
 	}
 	if ok {
 		if !blder.isAlreadyHandled("/convert") {
-			blder.mgr.GetWebhookServer().Register("/convert", conversion.NewWebhookHandler(blder.mgr.GetScheme()))
+			blder.mgr.GetWebhookServer().Register("/convert", conversion.NewWebhookHandler(blder.mgr.GetScheme(), blder.mgr.GetConverterRegistry()))
 		}
 		log.Info("Conversion webhook enabled", "GVK", blder.gvk)
 	}

@@ -751,7 +751,7 @@ func (*TestCustomDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	return nil
 }
 
-var _ admission.CustomDefaulter = &TestCustomDefaulter{}
+var _ admission.CustomDefaulter = &TestCustomDefaulter{} //nolint:staticcheck
 
 // TestCustomValidator.
 
@@ -815,4 +815,4 @@ func (*TestCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Obje
 	return nil, nil
 }
 
-var _ admission.CustomValidator = &TestCustomValidator{}
+var _ admission.CustomValidator = &TestCustomValidator{} //nolint:staticcheck
