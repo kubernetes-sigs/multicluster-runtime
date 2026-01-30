@@ -15,3 +15,6 @@ excludedModules:
 
   # --- We want a newer version with generics support for this
   - github.com/google/btree
+
+  # --- controller-runtime pulls in a newer version here
+  - sigs.k8s.io/structured-merge-diff/v6
