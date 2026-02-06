@@ -19,9 +19,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
-	"golang.org/x/sync/errgroup"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -53,42 +52,36 @@ func main() {
 	entryLog := ctrllog.Log.WithName("entrypoint")
 	ctx := signals.SetupSignalHandler()
 
-	// Start local manager to read the Cluster-API objects.
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		entryLog.Error(err, "unable to get kubeconfig")
 		os.Exit(1)
 	}
-	localMgr, err := manager.New(cfg, manager.Options{
+
+	// Create the Cluster API provider.
+	provider := capi.New(capi.Options{})
+
+	// Create a multi-cluster manager with the provider.
+	entryLog.Info("Setting up multi-cluster manager")
+	mcMgr, err := mcmanager.New(cfg, provider, mcmanager.Options{
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				Unstructured: true,
 				DisableFor:   []client.Object{&corev1.Secret{}},
 			},
 		},
-	})
-	if err != nil {
-		entryLog.Error(err, "unable to set up overall controller manager")
-		os.Exit(1)
-	}
-
-	// Create the provider against the local manager.
-	provider, err := capi.New(localMgr, capi.Options{})
-	if err != nil {
-		entryLog.Error(err, "unable to create provider")
-		os.Exit(1)
-	}
-
-	// Create a multi-cluster manager attached to the provider.
-	entryLog.Info("Setting up local manager")
-	mcMgr, err := mcmanager.New(cfg, provider, mcmanager.Options{
-		LeaderElection: false, // TODO(sttts): how to sync that with the upper manager?
 		Metrics: metricsserver.Options{
-			BindAddress: "0", // only one can listen
+			BindAddress: "0",
 		},
 	})
 	if err != nil {
-		entryLog.Error(err, "unable to set up overall controller manager")
+		entryLog.Error(err, "unable to set up multi-cluster manager")
+		os.Exit(1)
+	}
+
+	// Set up the provider controller on the manager.
+	if err := provider.SetupWithManager(mcMgr); err != nil {
+		entryLog.Error(err, "unable to set up provider")
 		os.Exit(1)
 	}
 
@@ -114,7 +107,7 @@ func main() {
 					return reconcile.Result{}, err
 				}
 
-				log.Info("ConfigMap %s/%s in cluster %q", cm.Namespace, cm.Name, req.ClusterName)
+				log.Info(fmt.Sprintf("ConfigMap %s/%s in cluster %q", cm.Namespace, cm.Name, req.ClusterName))
 
 				return ctrl.Result{}, nil
 			},
@@ -123,16 +116,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Starting everything.
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		return ignoreCanceled(localMgr.Start(ctx))
-	})
-	g.Go(func() error {
-		return ignoreCanceled(mcMgr.Start(ctx))
-	})
-	if err := g.Wait(); err != nil {
-		entryLog.Error(err, "unable to start")
+	// Start the manager.
+	if err := ignoreCanceled(mcMgr.Start(ctx)); err != nil {
+		entryLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 }
