@@ -27,7 +27,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/go-logr/logr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	utilkubeconfig "sigs.k8s.io/cluster-api/util/kubeconfig"
 
@@ -104,7 +103,6 @@ type activeCluster struct {
 // Provider is a cluster Provider that works with Cluster API.
 type Provider struct {
 	opts   Options
-	log    logr.Logger
 	client client.Client
 
 	lock     sync.RWMutex
@@ -118,7 +116,6 @@ type Provider struct {
 func New(opts Options) *Provider {
 	p := &Provider{
 		opts:     opts,
-		log:      log.Log.WithName("cluster-api-provider"),
 		clusters: map[string]activeCluster{},
 	}
 	setDefaults(&p.opts)
@@ -163,14 +160,14 @@ func (p *Provider) Get(_ context.Context, clusterName string) (cluster.Cluster, 
 // Reconcile reconciles CAPI Cluster resources.
 func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	key := req.NamespacedName.String()
-	log := p.log.WithValues("cluster", key)
+	log := log.FromContext(ctx)
 	log.Info("Reconciling Cluster")
 
 	// Get the CAPI cluster.
 	ccl := &capiv1beta1.Cluster{}
 	if err := p.client.Get(ctx, req.NamespacedName, ccl); err != nil {
 		if apierrors.IsNotFound(err) {
-			p.removeCluster(key)
+			p.removeCluster(ctx, key)
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, fmt.Errorf("failed to get Cluster %s: %w", key, err)
@@ -178,7 +175,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 
 	// Handle deletion.
 	if ccl.DeletionTimestamp != nil {
-		p.removeCluster(key)
+		p.removeCluster(ctx, key)
 		return reconcile.Result{}, nil
 	}
 
@@ -208,7 +205,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 			return reconcile.Result{}, nil
 		}
 		log.Info("Cluster kubeconfig changed, re-engaging")
-		p.removeCluster(key)
+		p.removeCluster(ctx, key)
 	}
 
 	// Parse the kubeconfig.
@@ -218,7 +215,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	}
 
 	// Create and engage the cluster.
-	if err := p.createAndEngageCluster(ctx, key, ccl, cfg, hashStr, log); err != nil {
+	if err := p.createAndEngageCluster(ctx, key, ccl, cfg, hashStr); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -233,7 +230,8 @@ func (p *Provider) hashKubeconfig(kubeconfigData []byte) string {
 }
 
 // createAndEngageCluster creates a new cluster, starts it, and engages it with the manager.
-func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *capiv1beta1.Cluster, cfg *rest.Config, hashStr string log logr.Logger) error {
+func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *capiv1beta1.Cluster, cfg *rest.Config, hashStr string) error {
+	log := log.FromContext(ctx)
 	log.Info("Creating new cluster")
 
 	cl, err := p.opts.NewCluster(ctx, ccl, cfg, p.opts.ClusterOptions...)
@@ -273,7 +271,7 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *
 
 	// Engage with the manager.
 	if err := p.mcMgr.Engage(clusterCtx, key, cl); err != nil {
-		p.removeCluster(key)
+		p.removeCluster(ctx, key)
 		return fmt.Errorf("failed to engage Cluster %s: %w", key, err)
 	}
 
@@ -296,8 +294,8 @@ func (p *Provider) applyIndexers(ctx context.Context, cl cluster.Cluster) error 
 }
 
 // removeCluster removes a cluster by name, cancelling its context.
-func (p *Provider) removeCluster(key string) {
-	log := p.log.WithValues("cluster", key)
+func (p *Provider) removeCluster(ctx context.Context, key string) {
+	log := log.FromContext(ctx)
 
 	p.lock.Lock()
 	ac, exists := p.clusters[key]
