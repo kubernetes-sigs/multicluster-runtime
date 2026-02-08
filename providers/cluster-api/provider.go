@@ -20,9 +20,10 @@ package capi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
-	"reflect"
 	"slices"
 	"sync"
 
@@ -53,9 +54,9 @@ type Options struct {
 	// ClusterOptions are the options passed to the cluster constructor.
 	ClusterOptions []cluster.Option
 
-	// GetSecret is a function that returns the kubeconfig for a CAPI cluster.
+	// GetSecret is a function that returns the raw kubeconfig bytes for a CAPI cluster.
 	// Defaults to reading the CAPI-managed kubeconfig secret.
-	GetSecret func(ctx context.Context, cl client.Client, ccl *capiv1beta1.Cluster) (*rest.Config, error)
+	GetSecret func(ctx context.Context, cl client.Client, ccl *capiv1beta1.Cluster) ([]byte, error)
 
 	// NewCluster is a function that creates a new cluster from a rest.Config.
 	// The cluster will be started by the provider.
@@ -68,12 +69,12 @@ type Options struct {
 
 func setDefaults(opts *Options) {
 	if opts.GetSecret == nil {
-		opts.GetSecret = func(ctx context.Context, cl client.Client, ccl *capiv1beta1.Cluster) (*rest.Config, error) {
+		opts.GetSecret = func(ctx context.Context, cl client.Client, ccl *capiv1beta1.Cluster) ([]byte, error) {
 			bs, err := utilkubeconfig.FromSecret(ctx, cl, types.NamespacedName{Name: ccl.Name, Namespace: ccl.Namespace})
 			if err != nil {
 				return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
 			}
-			return clientcmd.RESTConfigFromKubeConfig(bs)
+			return bs, nil
 		}
 	}
 	if opts.NewCluster == nil {
@@ -95,9 +96,9 @@ type index struct {
 }
 
 type activeCluster struct {
-	cluster    cluster.Cluster
-	cancel     context.CancelFunc
-	kubeconfig *rest.Config
+	cluster cluster.Cluster
+	cancel  context.CancelFunc
+	hash    string
 }
 
 // Provider is a cluster Provider that works with Cluster API.
@@ -188,10 +189,13 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	}
 
 	// Get kubeconfig.
-	cfg, err := p.opts.GetSecret(ctx, p.client, ccl)
+	kubeconfigData, err := p.opts.GetSecret(ctx, p.client, ccl)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to get kubeconfig for Cluster %s: %w", key, err)
 	}
+
+	// Hash the kubeconfig for change detection.
+	hashStr := p.hashKubeconfig(kubeconfigData)
 
 	// Check if cluster already engaged and kubeconfig unchanged.
 	p.lock.RLock()
@@ -199,7 +203,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	p.lock.RUnlock()
 
 	if exists {
-		if reflect.DeepEqual(ac.kubeconfig, cfg) {
+		if ac.hash == hashStr {
 			log.V(3).Info("Cluster already engaged and kubeconfig unchanged")
 			return reconcile.Result{}, nil
 		}
@@ -207,16 +211,29 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 		p.removeCluster(key)
 	}
 
+	// Parse the kubeconfig.
+	cfg, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigData)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to parse kubeconfig for Cluster %s: %w", key, err)
+	}
+
 	// Create and engage the cluster.
-	if err := p.createAndEngageCluster(ctx, key, ccl, cfg, log); err != nil {
+	if err := p.createAndEngageCluster(ctx, key, ccl, cfg, hashStr, log); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	return reconcile.Result{}, nil
 }
 
+// hashKubeconfig creates a SHA256 hash of the kubeconfig data for change detection.
+func (p *Provider) hashKubeconfig(kubeconfigData []byte) string {
+	h := sha256.New()
+	h.Write(kubeconfigData)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // createAndEngageCluster creates a new cluster, starts it, and engages it with the manager.
-func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *capiv1beta1.Cluster, cfg *rest.Config, log logr.Logger) error {
+func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *capiv1beta1.Cluster, cfg *rest.Config, hashStr string log logr.Logger) error {
 	log.Info("Creating new cluster")
 
 	cl, err := p.opts.NewCluster(ctx, ccl, cfg, p.opts.ClusterOptions...)
@@ -246,9 +263,9 @@ func (p *Provider) createAndEngageCluster(ctx context.Context, key string, ccl *
 	// Store the cluster.
 	p.lock.Lock()
 	p.clusters[key] = activeCluster{
-		cluster:    cl,
-		cancel:     cancel,
-		kubeconfig: cfg,
+		cluster: cl,
+		cancel:  cancel,
+		hash:    hashStr,
 	}
 	p.lock.Unlock()
 
