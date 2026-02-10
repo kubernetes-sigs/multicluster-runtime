@@ -110,6 +110,12 @@ type Manager interface {
 	// multicluster provider (if set) and the local manager.
 	GetFieldIndexer() client.FieldIndexer
 
+	// DefaultClusterOptions returns cluster.Options that providers should
+	// apply when constructing remote clusters (e.g. the manager's scheme).
+	// Providers should prepend these to any user-supplied ClusterOptions so
+	// that explicit overrides take precedence.
+	DefaultClusterOptions() []cluster.Option
+
 	multicluster.Aware
 }
 
@@ -213,6 +219,16 @@ func (m *mcManager) Add(r Runnable) error {
 // Cluster. ctx is cancelled when the cluster is disengaged.
 func (m *mcManager) Engage(ctx context.Context, name string, cl cluster.Cluster) error {
 	return m.coord.Engage(ctx, name, cl)
+}
+
+// DefaultClusterOptions returns cluster.Options derived from the local manager
+// that providers should apply when constructing remote clusters.
+func (m *mcManager) DefaultClusterOptions() []cluster.Option {
+	return []cluster.Option{
+		func(o *cluster.Options) {
+			o.Scheme = m.Manager.GetScheme()
+		},
+	}
 }
 
 func (m *mcManager) GetManager(ctx context.Context, clusterName string) (manager.Manager, error) {
