@@ -158,6 +158,10 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 		return fmt.Errorf("local manager is nil")
 	}
 
+	// Inherit manager defaults (scheme, etc.) so remote clusters recognise
+	// the same types as the local manager.
+	p.opts.ClusterOptions = append(mgr.DefaultClusterOptions(), p.opts.ClusterOptions...)
+
 	// Setup the controller to watch for secrets containing kubeconfig data
 	err := ctrl.NewControllerManagedBy(localMgr).
 		For(&corev1.Secret{}, builder.WithPredicates(predicate.NewPredicateFuncs(
