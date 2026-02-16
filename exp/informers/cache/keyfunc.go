@@ -48,8 +48,8 @@ func DeletionHandlingMetaClusterNamespaceKeyFunc(obj interface{}) (string, error
 // MetaClusterNamespaceKeyFunc is a convenient default KeyFunc which knows how to make
 // keys for API objects which implement meta.Interface.
 // The key uses the format <clusterName>|<namespace>/<name> unless <namespace> is empty, then
-// it's just <clusterName>|<name>, and if no cluster annotation is present,
-// it's just <namespace>/<name> or <name>.
+// it's just <clusterName>|<name>.
+// Returns an error if the cluster annotation is missing.
 func MetaClusterNamespaceKeyFunc(obj interface{}) (string, error) {
 	if key, ok := obj.(cache.ExplicitKey); ok {
 		return string(key), nil
@@ -64,17 +64,18 @@ func MetaClusterNamespaceKeyFunc(obj interface{}) (string, error) {
 		cluster = annotations[ClusterAnnotation]
 	}
 
+	if cluster == "" {
+		return "", fmt.Errorf("object %s/%s is missing cluster annotation %q", m.GetNamespace(), m.GetName(), ClusterAnnotation)
+	}
+
 	return ToClusterAwareKey(cluster, m.GetNamespace(), m.GetName()), nil
 }
 
 // ToClusterAwareKey formats a cluster, namespace, and name as a key.
 // Format: <cluster>|<namespace>/<name> or <cluster>|<name> if namespace is empty.
-// If cluster is empty, falls back to standard namespace/name format.
+// Cluster is required and must not be empty.
 func ToClusterAwareKey(cluster, namespace, name string) string {
-	var key string
-	if cluster != "" {
-		key += cluster + ClusterSeparator
-	}
+	key := cluster + ClusterSeparator
 	if namespace != "" {
 		key += namespace + "/"
 	}
@@ -84,27 +85,24 @@ func ToClusterAwareKey(cluster, namespace, name string) string {
 
 // SplitMetaClusterNamespaceKey returns the cluster, namespace and name that
 // MetaClusterNamespaceKeyFunc encoded into key.
+// The key must be in format <cluster>|<namespace>/<name> or <cluster>|<name>.
 func SplitMetaClusterNamespaceKey(key string) (clusterName, namespace, name string, err error) {
 	invalidKey := fmt.Errorf("unexpected key format: %q", key)
 	outerParts := strings.Split(key, ClusterSeparator)
-	switch len(outerParts) {
-	case 1:
-		// No cluster separator found, use standard namespace/name parsing
-		namespace, name, err = cache.SplitMetaNamespaceKey(outerParts[0])
-		if err != nil {
-			err = invalidKey
-		}
-		return "", namespace, name, err
-	case 2:
-		// Cluster separator found
-		namespace, name, err = cache.SplitMetaNamespaceKey(outerParts[1])
-		if err != nil {
-			err = invalidKey
-		}
-		return outerParts[0], namespace, name, err
-	default:
+	if len(outerParts) != 2 {
 		return "", "", "", invalidKey
 	}
+
+	clusterName = outerParts[0]
+	if clusterName == "" {
+		return "", "", "", fmt.Errorf("cluster name is required in key: %q", key)
+	}
+
+	namespace, name, err = cache.SplitMetaNamespaceKey(outerParts[1])
+	if err != nil {
+		return "", "", "", invalidKey
+	}
+	return clusterName, namespace, name, nil
 }
 
 // ClusterIndexFunc is an index function that indexes objects by their cluster annotation.
