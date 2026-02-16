@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,8 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	toolscache "k8s.io/client-go/tools/cache"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -52,6 +53,10 @@ type MultiClusterListerWatcher struct {
 	gvk      schema.GroupVersionKind
 	scheme   *runtime.Scheme
 	clusters map[string]*rest.Config
+
+	// mappers caches REST mappers per cluster to avoid repeated discovery calls
+	mappers   map[string]meta.RESTMapper
+	mappersMu sync.RWMutex
 }
 
 // NewMultiClusterListerWatcher creates a new MultiClusterListerWatcher.
@@ -60,6 +65,7 @@ func NewMultiClusterListerWatcher(gvk schema.GroupVersionKind, scheme *runtime.S
 		gvk:      gvk,
 		scheme:   scheme,
 		clusters: clusters,
+		mappers:  make(map[string]meta.RESTMapper),
 	}
 }
 
@@ -168,7 +174,7 @@ func (m *MultiClusterListerWatcher) watchCluster(aggregator *aggregatedWatcher, 
 		}
 
 		// Get the GVR for this GVK
-		gvr, err := m.getGVR(cfg)
+		gvr, err := m.getGVR(clusterName, cfg)
 		if err != nil {
 			log.Error(err, "Failed to get GVR")
 			time.Sleep(5 * time.Second)
@@ -235,25 +241,55 @@ func (m *MultiClusterListerWatcher) forwardEvents(aggregator *aggregatedWatcher,
 	}
 }
 
-// getGVR returns the GroupVersionResource for this GVK.
-func (m *MultiClusterListerWatcher) getGVR(cfg *rest.Config) (schema.GroupVersionResource, error) {
-	// Simple pluralization - for production, use a proper REST mapper
-	kind := m.gvk.Kind
-	plural := strings.ToLower(kind) + "s"
-
-	// Handle common irregular plurals
-	switch strings.ToLower(kind) {
-	case "endpoints":
-		plural = "endpoints"
-	case "ingress":
-		plural = "ingresses"
+// getGVR returns the GroupVersionResource for this GVK using the REST mapper.
+func (m *MultiClusterListerWatcher) getGVR(clusterName string, cfg *rest.Config) (schema.GroupVersionResource, error) {
+	mapper, err := m.getOrCreateMapper(clusterName, cfg)
+	if err != nil {
+		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapper for cluster %s: %w", clusterName, err)
 	}
 
-	return schema.GroupVersionResource{
-		Group:    m.gvk.Group,
-		Version:  m.gvk.Version,
-		Resource: plural,
-	}, nil
+	mapping, err := mapper.RESTMapping(m.gvk.GroupKind(), m.gvk.Version)
+	if err != nil {
+		return schema.GroupVersionResource{}, fmt.Errorf("failed to get REST mapping for %v: %w", m.gvk, err)
+	}
+
+	return mapping.Resource, nil
+}
+
+// getOrCreateMapper returns a cached REST mapper for the cluster, creating one if necessary.
+func (m *MultiClusterListerWatcher) getOrCreateMapper(clusterName string, cfg *rest.Config) (meta.RESTMapper, error) {
+	// Try to get from cache first
+	m.mappersMu.RLock()
+	mapper, ok := m.mappers[clusterName]
+	m.mappersMu.RUnlock()
+	if ok {
+		return mapper, nil
+	}
+
+	// Create a new mapper
+	m.mappersMu.Lock()
+	defer m.mappersMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if mapper, ok := m.mappers[clusterName]; ok {
+		return mapper, nil
+	}
+
+	// Create discovery client and build REST mapper
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get API group resources: %w", err)
+	}
+
+	mapper = restmapper.NewDiscoveryRESTMapper(groupResources)
+	m.mappers[clusterName] = mapper
+
+	return mapper, nil
 }
 
 // convertToTyped converts an unstructured object to a typed object.
