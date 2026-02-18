@@ -134,6 +134,10 @@ func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
 	}
 	p.client = localMgr.GetClient()
 
+	// Inherit manager defaults (scheme, etc.) so remote clusters recognise
+	// the same types as the local manager.
+	p.opts.ClusterOptions = append(mgr.DefaultClusterOptions(), p.opts.ClusterOptions...)
+
 	// Create a controller builder
 	controllerBuilder := builder.ControllerManagedBy(localMgr).
 		For(&clusterinventoryv1alpha1.ClusterProfile{}).
