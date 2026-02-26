@@ -180,89 +180,9 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 	}
 	ck.mu.Unlock()
 
-	// predicate helpers
-	passCreate := func(e event.TypedCreateEvent[object]) bool {
-		for _, p := range ck.preds {
-			if !p.Create(e) {
-				return false
-			}
-		}
-		return true
-	}
-	passUpdate := func(e event.TypedUpdateEvent[object]) bool {
-		for _, p := range ck.preds {
-			if !p.Update(e) {
-				return false
-			}
-		}
-		return true
-	}
-	passDelete := func(e event.TypedDeleteEvent[object]) bool {
-		for _, p := range ck.preds {
-			if !p.Delete(e) {
-				return false
-			}
-		}
-		return true
-	}
-
-	// typed event builders
-	makeCreate := func(o client.Object) event.TypedCreateEvent[object] {
-		return event.TypedCreateEvent[object]{Object: any(o).(object)}
-	}
-	makeUpdate := func(oo, no client.Object) event.TypedUpdateEvent[object] {
-		return event.TypedUpdateEvent[object]{ObjectOld: any(oo).(object), ObjectNew: any(no).(object)}
-	}
-	makeDelete := func(o client.Object) event.TypedDeleteEvent[object] {
-		return event.TypedDeleteEvent[object]{Object: any(o).(object)}
-	}
-
-	// Adapter that forwards to controller handler, honoring ctx.
-	handler := ck.h(ck.clusterName, ck.cl)
-	if handler == nil {
-		return fmt.Errorf("handler for %q built for cluster %q is nil", ck.obj.GetObjectKind().GroupVersionKind(), ck.clusterName)
-	}
-
-	h := toolscache.ResourceEventHandlerFuncs{
-		AddFunc: func(i interface{}) {
-			if ctx.Err() != nil {
-				return
-			}
-			if o, ok := i.(client.Object); ok {
-				e := makeCreate(o)
-				if passCreate(e) {
-					handler.Create(ctx, e, q)
-				}
-			}
-		},
-		UpdateFunc: func(oo, no interface{}) {
-			if ctx.Err() != nil {
-				return
-			}
-			ooObj, ok1 := oo.(client.Object)
-			noObj, ok2 := no.(client.Object)
-			if ok1 && ok2 {
-				e := makeUpdate(ooObj, noObj)
-				if passUpdate(e) {
-					handler.Update(ctx, e, q)
-				}
-			}
-		},
-		DeleteFunc: func(i interface{}) {
-			if ctx.Err() != nil {
-				return
-			}
-			// be robust to tombstones (provider should already unwrap)
-			if ts, ok := i.(toolscache.DeletedFinalStateUnknown); ok {
-				i = ts.Obj
-			}
-			if o, ok := i.(client.Object); ok {
-				e := makeDelete(o)
-				if passDelete(e) {
-					handler.Delete(ctx, e, q)
-				}
-			}
-		},
+	h, err := ck.buildEventHandler(ctx, q)
+	if err != nil {
+		return fmt.Errorf("error building event handler: %w", err)
 	}
 
 	// Register via removable API.
@@ -310,6 +230,95 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 	}()
 
 	return nil
+}
+
+func (ck *clusterKind[object, request]) buildEventHandler(ctx context.Context, q workqueue.TypedRateLimitingInterface[request]) (toolscache.ResourceEventHandlerFuncs, error) {
+	// predicate helpers
+	passCreate := func(e event.TypedCreateEvent[object]) bool {
+		for _, p := range ck.preds {
+			if !p.Create(e) {
+				return false
+			}
+		}
+		return true
+	}
+	passUpdate := func(e event.TypedUpdateEvent[object]) bool {
+		for _, p := range ck.preds {
+			if !p.Update(e) {
+				return false
+			}
+		}
+		return true
+	}
+	passDelete := func(e event.TypedDeleteEvent[object]) bool {
+		for _, p := range ck.preds {
+			if !p.Delete(e) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// typed event builders
+	makeCreate := func(o client.Object) event.TypedCreateEvent[object] {
+		return event.TypedCreateEvent[object]{Object: any(o).(object)}
+	}
+	makeUpdate := func(oo, no client.Object) event.TypedUpdateEvent[object] {
+		return event.TypedUpdateEvent[object]{ObjectOld: any(oo).(object), ObjectNew: any(no).(object)}
+	}
+	makeDelete := func(o client.Object) event.TypedDeleteEvent[object] {
+		return event.TypedDeleteEvent[object]{Object: any(o).(object)}
+	}
+
+	// Adapter that forwards to controller handler, honoring ctx.
+	handler := ck.h(ck.clusterName, ck.cl)
+	if handler == nil {
+		return toolscache.ResourceEventHandlerFuncs{}, fmt.Errorf("handler for %q built for cluster %q is nil", ck.obj.GetObjectKind().GroupVersionKind(), ck.clusterName)
+	}
+
+	h := toolscache.ResourceEventHandlerFuncs{
+		AddFunc: func(i interface{}) {
+			if ctx.Err() != nil {
+				return
+			}
+			if o, ok := i.(client.Object); ok {
+				e := makeCreate(o)
+				if passCreate(e) {
+					handler.Create(ctx, e, q)
+				}
+			}
+		},
+		UpdateFunc: func(oo, no interface{}) {
+			if ctx.Err() != nil {
+				return
+			}
+			ooObj, ok1 := oo.(client.Object)
+			noObj, ok2 := no.(client.Object)
+			if ok1 && ok2 {
+				e := makeUpdate(ooObj, noObj)
+				if passUpdate(e) {
+					handler.Update(ctx, e, q)
+				}
+			}
+		},
+		DeleteFunc: func(i interface{}) {
+			if ctx.Err() != nil {
+				return
+			}
+			// be robust to tombstones (provider should already unwrap)
+			if ts, ok := i.(toolscache.DeletedFinalStateUnknown); ok {
+				i = ts.Obj
+			}
+			if o, ok := i.(client.Object); ok {
+				e := makeDelete(o)
+				if passDelete(e) {
+					handler.Delete(ctx, e, q)
+				}
+			}
+		},
+	}
+
+	return h, nil
 }
 
 // getInformer resolves the informer from the cluster cache (provider returns a scoped informer).
