@@ -74,17 +74,76 @@ type kind[object client.Object, request mcreconcile.ClusterAware[request]] struc
 	clusterFilter ClusterFilterFunc
 }
 
+// clusterKind implements the per-cluster source for a specific kind.
+// It handles the lifecycle of informer event handlers for a single cluster.
+//
+// The implementation uses lazy initialization and filtering to avoid unnecessary
+// resource usage and side-effects:
+//
+//   - shouldEngage: This flag indicates whether the cluster should actually
+//     participate in event handling based on the cluster filter. When false,
+//     the source behaves as a no-op, returning immediately from WaitForSync()
+//     and doing nothing in Start(). This prevents the creation of watches and
+//     event handlers for filtered-out clusters while still satisfying the
+//     TypedSyncingSource interface contract.
+//
+//   - handlerFunc: The event handler function provided by the user is stored
+//     rather than being instantiated immediately. This avoids creating the
+//     handler (which may have side-effects or expensive initialization) for
+//     clusters that are filtered out. The actual handler.TypedEventHandler is
+//     created lazily in getOrCreateHandler() only when needed and only for
+//     engaging clusters.
+//
+//   - Efficiency: By deferring handler creation and skipping watches for filtered
+//     clusters, we significantly reduce resource consumption in multi-cluster
+//     environments where many clusters may be filtered out. This also prevents
+//     any unexpected behavior that might arise from handler instantiation for
+//     clusters that should be ignored.
+//
+// The struct maintains thread-safety through a mutex for all operations on
+// registration and active context, ensuring proper cleanup during context
+// cancellation and preventing race conditions.
 type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]] struct {
+	// clusterName is the identifier of the cluster this source belongs to
 	clusterName multicluster.ClusterName
-	cl          cluster.Cluster
-	obj         object
-	h           handler.TypedEventHandler[object, request]
-	preds       []predicate.TypedPredicate[object]
-	resync      time.Duration
+	
+	// cl is the cluster.Cluster instance providing access to the cluster's cache
+	cl cluster.Cluster
+	
+	// obj is the projected object type this source watches
+	obj object
+	
+	// handlerFunc is the user-provided event handler function that will be
+	// lazily instantiated into handler.TypedEventHandler only for engaging clusters.
+	// This lazy initialization prevents side-effects for filtered-out clusters.
+	handlerFunc mchandler.TypedEventHandlerFunc[object, request]
+	
+	// preds are the predicates used to filter events before they reach the handler
+	preds []predicate.TypedPredicate[object]
+	
+	// resync is the period for resyncing the informer
+	resync time.Duration
+	
+	// shouldEngage indicates whether this cluster should actually participate
+	// in event handling based on the cluster filter. When false, the source
+	// becomes a no-op to avoid unnecessary watches and handler instantiation.
+	// This flag is set during ForCluster() based on the cluster filter result.
+	shouldEngage bool
 
-	mu           sync.Mutex
+	// mu protects concurrent access to registration, activeCtx, and handler
+	mu sync.Mutex
+	
+	// registration is the handle for the registered event handler, used for cleanup
 	registration toolscache.ResourceEventHandlerRegistration
-	activeCtx    context.Context
+	
+	// activeCtx is the context with which the handler was last started,
+	// used to track and clean up stale registrations
+	activeCtx context.Context
+	
+	// handler is the lazily-instantiated event handler. It is created only when
+	// needed (in Start()) and only for engaging clusters (shouldEngage=true).
+	// This prevents side-effects and resource usage for filtered-out clusters.
+	handler handler.TypedEventHandler[object, request]
 }
 
 // WithProjection sets the projection function for the KindSource.
@@ -103,20 +162,24 @@ func (k *kind[object, request]) ForCluster(name multicluster.ClusterName, cl clu
 	if err != nil {
 		return nil, false, err
 	}
-	// A valid TypedSource must always be returned, even if it shouldn't
-	// engage based on the filter to allow engaging with the local
-	// cluster.
+	
+	// Determine if this cluster should engage based on the filter
 	shouldEngage := true
 	if k.clusterFilter != nil {
 		shouldEngage = k.clusterFilter(name, cl)
 	}
+	
+	// Always return the same source type, but with engagement flag
+	// Store the handler function instead of instantiating it to avoid
+	// premature side-effects for filtered-out clusters
 	return &clusterKind[object, request]{
-		clusterName: name,
-		cl:          cl,
-		obj:         obj,
-		h:           k.handler(name, cl),
-		preds:       k.predicates,
-		resync:      k.resync,
+		clusterName:  name,
+		cl:           cl,
+		obj:          obj,
+		handlerFunc:  k.handler, // Store the function for lazy initialization
+		preds:        k.predicates,
+		resync:       k.resync,
+		shouldEngage: shouldEngage,
 	}, shouldEngage, nil
 }
 
@@ -128,17 +191,69 @@ func (k *kind[object, request]) SyncingForCluster(name multicluster.ClusterName,
 	return src.(crsource.TypedSyncingSource[request]), shouldEngage, nil
 }
 
-// WaitForSync satisfies TypedSyncingSource.
+// WaitForSync waits for the cluster's cache to sync.
+// For non-engaging clusters (filtered out), it returns immediately with a log
+// message to indicate that sync was skipped, without blocking controller startup.
+// This satisfies the TypedSyncingSource interface while avoiding unnecessary
+// waits and resource usage for filtered clusters.
 func (ck *clusterKind[object, request]) WaitForSync(ctx context.Context) error {
+	log := log.FromContext(ctx).WithValues("cluster", ck.clusterName, "source", "kind")
+	
+	// For non-engaging clusters, we're always "synced" from the perspective
+	// of this source since we won't be creating any watches. Log at V(1) to
+	// indicate this is happening without being too verbose.
+	if !ck.shouldEngage {
+		log.V(1).Info("cluster filtered out, skipping cache sync wait")
+		return nil
+	}
+	
+	// For engaging clusters, actually wait for the cache to sync
 	if !ck.cl.GetCache().WaitForCacheSync(ctx) {
 		return ctx.Err()
 	}
+	
+	log.V(1).Info("cluster cache synced successfully")
 	return nil
 }
 
+// getOrCreateHandler lazily creates the handler only when needed and only for engaging clusters.
+// This method is thread-safe and ensures that:
+//   - Handler is only instantiated once per clusterKind instance
+//   - Handler is only created for clusters with shouldEngage=true
+//   - No handler is created for filtered-out clusters, preventing side-effects
+func (ck *clusterKind[object, request]) getOrCreateHandler() handler.TypedEventHandler[object, request] {
+	ck.mu.Lock()
+	defer ck.mu.Unlock()
+	
+	// Only instantiate the handler for engaging clusters and only if not already created
+	if ck.handler == nil && ck.shouldEngage {
+		// Lazy initialization: create the handler only when actually needed
+		ck.handler = ck.handlerFunc(ck.clusterName, ck.cl)
+	}
+	return ck.handler
+}
+
 // Start registers a removable handler on the (scoped) informer and removes it on ctx.Done().
+// For filtered-out clusters (shouldEngage=false), this method does nothing and returns nil,
+// preventing any watch creation or handler instantiation.
 func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.TypedRateLimitingInterface[request]) error {
 	log := log.FromContext(ctx).WithValues("cluster", ck.clusterName, "source", "kind")
+	
+	// If this cluster should not engage, do nothing - no handler creation, no watches.
+	// This is the key optimization that prevents resource usage and side-effects
+	// for filtered-out clusters while maintaining the interface contract.
+	if !ck.shouldEngage {
+		log.V(1).Info("cluster filtered out, skipping source start")
+		return nil
+	}
+
+	// Get or create the handler (lazy initialization)
+	handler := ck.getOrCreateHandler()
+	if handler == nil {
+		// This shouldn't happen if shouldEngage is true, but log just in case
+		log.V(1).Info("handler is nil for engaging cluster")
+		return nil
+	}
 
 	// Check if we're already started with this context
 	ck.mu.Lock()
@@ -226,7 +341,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if o, ok := i.(client.Object); ok {
 				e := makeCreate(o)
 				if passCreate(e) {
-					ck.h.Create(ctx, e, q)
+					handler.Create(ctx, e, q)
 				}
 			}
 		},
@@ -239,7 +354,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if ok1 && ok2 {
 				e := makeUpdate(ooObj, noObj)
 				if passUpdate(e) {
-					ck.h.Update(ctx, e, q)
+					handler.Update(ctx, e, q)
 				}
 			}
 		},
@@ -254,7 +369,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if o, ok := i.(client.Object); ok {
 				e := makeDelete(o)
 				if passDelete(e) {
-					ck.h.Delete(ctx, e, q)
+					handler.Delete(ctx, e, q)
 				}
 			}
 		},
