@@ -18,6 +18,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	crsource "sigs.k8s.io/controller-runtime/pkg/source"
@@ -78,7 +78,7 @@ type clusterKind[object client.Object, request mcreconcile.ClusterAware[request]
 	clusterName multicluster.ClusterName
 	cl          cluster.Cluster
 	obj         object
-	h           handler.TypedEventHandler[object, request]
+	h           mchandler.TypedEventHandlerFunc[object, request]
 	preds       []predicate.TypedPredicate[object]
 	resync      time.Duration
 
@@ -114,7 +114,7 @@ func (k *kind[object, request]) ForCluster(name multicluster.ClusterName, cl clu
 		clusterName: name,
 		cl:          cl,
 		obj:         obj,
-		h:           k.handler(name, cl),
+		h:           k.handler,
 		preds:       k.predicates,
 		resync:      k.resync,
 	}, shouldEngage, nil
@@ -218,6 +218,11 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 	}
 
 	// Adapter that forwards to controller handler, honoring ctx.
+	handler := ck.h(ck.clusterName, ck.cl)
+	if handler == nil {
+		return fmt.Errorf("handler for %q built for cluster %q is nil", ck.obj.GetObjectKind().GroupVersionKind(), ck.clusterName)
+	}
+
 	h := toolscache.ResourceEventHandlerFuncs{
 		AddFunc: func(i interface{}) {
 			if ctx.Err() != nil {
@@ -226,7 +231,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if o, ok := i.(client.Object); ok {
 				e := makeCreate(o)
 				if passCreate(e) {
-					ck.h.Create(ctx, e, q)
+					handler.Create(ctx, e, q)
 				}
 			}
 		},
@@ -239,7 +244,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if ok1 && ok2 {
 				e := makeUpdate(ooObj, noObj)
 				if passUpdate(e) {
-					ck.h.Update(ctx, e, q)
+					handler.Update(ctx, e, q)
 				}
 			}
 		},
@@ -254,7 +259,7 @@ func (ck *clusterKind[object, request]) Start(ctx context.Context, q workqueue.T
 			if o, ok := i.(client.Object); ok {
 				e := makeDelete(o)
 				if passDelete(e) {
-					ck.h.Delete(ctx, e, q)
+					handler.Delete(ctx, e, q)
 				}
 			}
 		},
