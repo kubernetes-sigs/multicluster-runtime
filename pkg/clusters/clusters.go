@@ -128,13 +128,6 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName multicluster.ClusterN
 		return fmt.Errorf("timed out after %q waiting for cache to sync for cluster %s", c.WaitCacheTimeout, clusterName)
 	}
 
-	if aware != nil {
-		if err := aware.Engage(ctx, clusterName, cl); err != nil {
-			defer c.Remove(clusterName)
-			return err
-		}
-	}
-
 	c.lock.RLock()
 	for _, index := range c.indexers {
 		if err := cl.GetFieldIndexer().IndexField(ctx, index.Object, index.Field, index.Extractor); err != nil {
@@ -144,6 +137,13 @@ func (c *Clusters[T]) Add(ctx context.Context, clusterName multicluster.ClusterN
 		}
 	}
 	c.lock.RUnlock()
+
+	if aware != nil {
+		if err := aware.Engage(ctx, clusterName, cl); err != nil {
+			defer c.Remove(clusterName)
+			return err
+		}
+	}
 
 	return nil
 }
