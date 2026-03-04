@@ -167,6 +167,7 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 					obj.GetLabels()[p.opts.KubeconfigSecretLabel] == "true"
 			},
 		))).
+		Named("kubeconfig-provider").
 		Complete(p)
 	if err != nil {
 		return fmt.Errorf("failed to create controller: %w", err)
