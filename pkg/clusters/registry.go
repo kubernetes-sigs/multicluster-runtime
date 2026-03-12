@@ -63,7 +63,14 @@ func (r *Registry[T]) Start(ctx context.Context) error {
 
 // Engage adds or replaces the cluster with the given name in the registry.
 func (r *Registry[T]) Engage(ctx context.Context, name multicluster.ClusterName, cl cluster.Cluster) error {
-	return r.AddOrReplace(ctx, name, cl.(T))
+	if err := r.AddOrReplace(ctx, name, cl.(T)); err != nil {
+		return err
+	}
+	go func() {
+		<-ctx.Done()
+		r.RemoveIfEqual(name, cl.(T))
+	}()
+	return nil
 }
 
 // ClusterNames returns the names of all clusters in a sorted order.
@@ -110,6 +117,21 @@ func (r *Registry[T]) Add(ctx context.Context, name multicluster.ClusterName, cl
 func (r *Registry[T]) Remove(name multicluster.ClusterName) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+	delete(r.clusters, name)
+}
+
+// RemoveIfEqual removes a cluster if the currently stored cluster is
+// equal to the passed cluster.
+func (r *Registry[T]) RemoveIfEqual(name multicluster.ClusterName, cl T) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	stored, ok := r.clusters[name]
+	if !ok {
+		return
+	}
+	if any(cl) != any(stored) {
+		return
+	}
 	delete(r.clusters, name)
 }
 
