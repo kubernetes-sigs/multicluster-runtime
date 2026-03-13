@@ -37,17 +37,17 @@ jobs:
 
   golangci-lint-matrix:
     name: golangci-lint [${{ matrix.working-directory }}]
-    
+
     runs-on: ubuntu-latest
 
     needs:
       - list-modules
-    
+
     strategy:
       fail-fast: false
       matrix:
         working-directory: ${{ fromJSON(needs.list-modules.outputs.modules) }}
-    
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
       - name: Calculate go version
@@ -60,7 +60,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # tag=v9.2.0
         with:
-          version: v2.8.0
+          version: v2.10.1
           working-directory: ${{matrix.working-directory}}
 
   golangci-lint: # aggregate the results of the matrix job. This we can depend on in the branch protection rule.
