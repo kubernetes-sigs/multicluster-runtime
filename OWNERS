@@ -6,3 +6,6 @@ approvers:
   - mjudeikis
   - skitt
   - jeremyot
+
+labels:
+  - sig/multicluster
