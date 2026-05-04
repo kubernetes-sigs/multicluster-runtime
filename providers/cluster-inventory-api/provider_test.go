@@ -26,7 +26,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
+	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -401,7 +401,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 				provider, err = New(Options{
 					KubeconfigStrategyOption: kubeconfigstrategy.Option{
 						CredentialsProvider: &kubeconfigstrategy.CredentialsProviderOption{
-							Provider: credentials.New([]credentials.Provider{{
+							Provider: access.New([]access.Provider{{
 								Name: credentialProviderName,
 								ExecConfig: &clientcmdapi.ExecConfig{
 									APIVersion: "client.authentication.k8s.io/v1beta1",

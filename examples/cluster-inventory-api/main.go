@@ -23,7 +23,7 @@ import (
 	"os"
 
 	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
+	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -49,7 +49,7 @@ func init() {
 }
 
 func main() {
-	credentialsProviderFile := credentials.SetupProviderFileFlag()
+	credentialsProviderFile := access.SetupProviderFileFlag()
 	flag.Parse()
 
 	ctrllog.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Load credential providers from configuration file
-	credentialsProvider, err := credentials.NewFromFile(*credentialsProviderFile)
+	credentialsProvider, err := access.NewFromFile(*credentialsProviderFile)
 	if err != nil {
 		entryLog.Error(err, "Got error reading credentials providers")
 		os.Exit(1)
