@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/pkg/credentials"
+	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	"k8s.io/client-go/rest"
 
@@ -17,11 +17,11 @@ var _ Interface = &credentialsProviderStrategy{}
 // CredentialsProviderOption specifies the credentials provider option.
 // It contains the credentials provider that will be used to build the kubeconfig.
 type CredentialsProviderOption struct {
-	Provider *credentials.CredentialsProvider
+	Provider *access.Config
 }
 
 type credentialsProviderStrategy struct {
-	provider *credentials.CredentialsProvider
+	provider *access.Config
 }
 
 func newCredentialsProviderStrategy(ctx context.Context, option CredentialsProviderOption) (Interface, error) {
