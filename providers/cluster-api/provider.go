@@ -27,7 +27,7 @@ import (
 	"slices"
 	"sync"
 
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	utilkubeconfig "sigs.k8s.io/cluster-api/util/kubeconfig"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
