@@ -18,11 +18,13 @@ package multiclusterruntime
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
@@ -31,6 +33,11 @@ import (
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 )
+
+// NewWebhookManagedBy returns a new webhook builder that will be started by the provided Manager.
+func NewWebhookManagedBy[T runtime.Object](mgr manager.Manager, obj T) *mcbuilder.WebhookBuilder[T] {
+	return mcbuilder.WebhookManagedBy(mgr, obj)
+}
 
 // Builder builds an Application ControllerManagedBy (e.g. Operator) and returns a manager.Manager to start it.
 type Builder = mcbuilder.Builder
@@ -100,9 +107,6 @@ var (
 
 	// NewControllerManagedBy returns a new controller builder that will be started by the provided Manager.
 	NewControllerManagedBy = mcbuilder.ControllerManagedBy
-
-	// NewWebhookManagedBy returns a new webhook builder that will be started by the provided Manager.
-	NewWebhookManagedBy = mcbuilder.WebhookManagedBy
 
 	// NewManager returns a new Manager for creating Controllers.
 	// Note that if ContentType in the given config is not set, "application/vnd.kubernetes.protobuf"
