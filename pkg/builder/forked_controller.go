@@ -183,7 +183,7 @@ func (blder *TypedBuilder[request]) Watches(
 ) *TypedBuilder[request] {
 	input := WatchesInput[request]{
 		obj:     object,
-		handler: mchandler.WithLowPriorityWhenUnchanged[client.Object, request](eventHandler),
+		handler: eventHandler,
 	}
 	for _, opt := range opts {
 		opt.ApplyToWatches(&input)
@@ -349,7 +349,7 @@ func (blder *TypedBuilder[request]) doWatch() error {
 		}
 
 		var hdler mchandler.TypedEventHandlerFunc[client.Object, request]
-		reflect.ValueOf(&hdler).Elem().Set(reflect.ValueOf(mchandler.WithLowPriorityWhenUnchanged(mchandler.EnqueueRequestForObject)))
+		reflect.ValueOf(&hdler).Elem().Set(reflect.ValueOf(mchandler.EnqueueRequestForObject))
 
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)
 		allPredicates = append(allPredicates, blder.forInput.predicates...)
@@ -385,11 +385,11 @@ func (blder *TypedBuilder[request]) doWatch() error {
 
 		hdler := func(clusterName multicluster.ClusterName, cl cluster.Cluster) handler.TypedEventHandler[client.Object, request] {
 			var hdler handler.TypedEventHandler[client.Object, request]
-			reflect.ValueOf(&hdler).Elem().Set(reflect.ValueOf(mchandler.ForCluster(handler.WithLowPriorityWhenUnchanged(handler.EnqueueRequestForOwner(
+			reflect.ValueOf(&hdler).Elem().Set(reflect.ValueOf(mchandler.ForCluster(handler.EnqueueRequestForOwner(
 				blder.mgr.GetLocalManager().GetScheme(), cl.GetRESTMapper(),
 				blder.forInput.object,
 				opts...,
-			)), clusterName)))
+			), clusterName)))
 			return hdler
 		}
 		allPredicates := append([]predicate.Predicate(nil), blder.globalPredicates...)

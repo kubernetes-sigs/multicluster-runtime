@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 
+	//nolint:staticcheck
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
