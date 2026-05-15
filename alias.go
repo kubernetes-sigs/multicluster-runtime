@@ -58,7 +58,7 @@ type Manager = mcmanager.Manager
 type Options = mcmanager.Options
 
 // SchemeBuilder builds a new Scheme for mapping go types to Kubernetes GroupVersionKinds.
-type SchemeBuilder = scheme.Builder
+type SchemeBuilder = scheme.Builder //nolint:staticcheck // this is the deprecation alias
 
 // GroupVersion contains the "group" and the "version", which uniquely identifies the API.
 type GroupVersion = schema.GroupVersion

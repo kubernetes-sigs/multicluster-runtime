@@ -385,6 +385,7 @@ var _ = Describe("application", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("registering the type in the Scheme")
+			//nolint:staticcheck
 			builder := scheme.Builder{GroupVersion: testDefaultValidatorGVK.GroupVersion()}
 			builder.Register(&TestDefaultValidator{}, &TestDefaultValidatorList{})
 			err = builder.AddToScheme(m.GetLocalManager().GetScheme())
