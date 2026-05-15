@@ -1,6 +1,6 @@
 module sigs.k8s.io/multicluster-runtime/examples/local-to-uniform
 
-go 1.26.0
+go 1.26.3
 
 replace (
 	sigs.k8s.io/multicluster-runtime => ../..
