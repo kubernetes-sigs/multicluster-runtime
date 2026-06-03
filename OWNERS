@@ -6,6 +6,7 @@ approvers:
   - mjudeikis
   - skitt
   - jeremyot
+  - ntnn
 
 labels:
   - sig/multicluster
