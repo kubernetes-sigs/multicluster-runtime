@@ -2,6 +2,7 @@ package kubeconfigstrategy
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 	"sigs.k8s.io/cluster-inventory-api/pkg/access"
@@ -30,6 +31,9 @@ type accessProviderStrategy struct {
 }
 
 func newAccessProviderStrategy(ctx context.Context, option AccessProviderOption) (Interface, error) {
+	if option.Provider == nil {
+		return nil, fmt.Errorf("access provider must be set for AccessProvider strategy")
+	}
 	log.FromContext(ctx).Info("Using AccessProvider strategy for fetching kubeconfig from ClusterProfile")
 	return &accessProviderStrategy{
 		provider: option.Provider,
