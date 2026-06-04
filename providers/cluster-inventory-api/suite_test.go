@@ -17,10 +17,10 @@ limitations under the License.
 package clusterinventoryapi
 
 import (
-	"io"
-	"net/http"
-	"os"
+	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
@@ -48,13 +48,10 @@ var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	assetDir := GinkgoT().TempDir()
-
-	clusterProfileCRDPath = filepath.Join(assetDir, "multicluster.x-k8s.io_clusterprofiles.yaml")
-	Expect(DownloadFile(
-		clusterProfileCRDPath,
-		"https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/refs/heads/main/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml",
-	)).NotTo(HaveOccurred())
+	clusterInventoryAPIDir, err := moduleDir("sigs.k8s.io/cluster-inventory-api")
+	Expect(err).NotTo(HaveOccurred())
+	clusterProfileCRDPath = filepath.Join(clusterInventoryAPIDir, "config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml")
+	Expect(clusterProfileCRDPath).To(BeAnExistingFile())
 
 	// Prevent the metrics listener being created
 	metricsserver.DefaultBindAddress = "0"
@@ -65,19 +62,15 @@ var _ = AfterSuite(func() {
 	metricsserver.DefaultBindAddress = ":8080"
 })
 
-func DownloadFile(filepath string, url string) error {
-	resp, err := http.Get(url)
+func moduleDir(module string) (string, error) {
+	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", module)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		return "", fmt.Errorf("go list module directory for %s: %w: %s", module, err, strings.TrimSpace(string(output)))
 	}
-	defer resp.Body.Close()
-
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
+	dir := strings.TrimSpace(string(output))
+	if dir == "" {
+		return "", fmt.Errorf("go list module directory for %s returned an empty path", module)
 	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
+	return dir, nil
 }
