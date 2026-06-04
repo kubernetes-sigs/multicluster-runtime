@@ -71,6 +71,11 @@ help:  ## Display this help
 test: test-tools ## Run the script check-everything.sh which will check all.
 	TRACE=1 ./hack/check-everything.sh
 
+.PHONY: test-e2e-cluster-inventory-api
+test-e2e-cluster-inventory-api: ## Run the cluster-inventory-api example e2e test on kind.
+	bash ./examples/cluster-inventory-api/setup-kind-demo.sh
+	bash ./examples/cluster-inventory-api/e2e-incluster.sh
+
 .PHONY: test-tools
 test-tools:
 

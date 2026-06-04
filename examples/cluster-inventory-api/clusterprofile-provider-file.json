@@ -1,11 +1,11 @@
 {
   "providers": [
     {
-      "name": "google",
+      "name": "kubeconfig-secretreader",
       "execConfig": {
-        "apiVersion": "client.authentication.k8s.io/v1beta1",
+        "apiVersion": "client.authentication.k8s.io/v1",
         "args": null,
-        "command": "gke-gcloud-auth-plugin",
+        "command": "/plugin/bin/kubeconfig-secretreader-plugin",
         "env": null,
         "provideClusterInfo": true
       }
