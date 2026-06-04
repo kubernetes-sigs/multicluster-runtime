@@ -77,11 +77,6 @@ func main() {
 			AccessProvider: &kubeconfigstrategy.AccessProviderOption{
 				Provider: accessCfg,
 			},
-			// // Alternative:
-			// //   You can use the Secret strategy, but it is not recommended for production use.
-			// Secret: &kubeconfigstrategy.SecretStrategyOption{
-			// 	ConsumerName: "cluster-inventory-api-consumer",
-			// },
 		},
 	})
 	if err != nil {

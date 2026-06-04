@@ -6,9 +6,11 @@ import (
 )
 
 // Option specifies which strategy will be applied to fetch the kubeconfig from ClusterProfile.
-// Exactly one of Secret, AccessProvider, or CredentialsProvider must be set.
+// Exactly one of AccessProvider, Secret, or CredentialsProvider must be set.
 type Option struct {
-	// Secret specifies option for the Secret strategy
+	// Secret specifies option for the Secret strategy.
+	//
+	// Deprecated: Use AccessProvider instead.
 	Secret *SecretStrategyOption
 
 	// AccessProvider specifies option for AccessProvider strategy.
@@ -22,19 +24,26 @@ type Option struct {
 
 // New creates a new kubeconfig strategy based on the provided options.
 func New(ctx context.Context, option Option) (Interface, error) {
-	accessProvider := option.AccessProvider
+	count := 0
+	if option.AccessProvider != nil {
+		count++
+	}
+	if option.Secret != nil {
+		count++
+	}
 	if option.CredentialsProvider != nil {
-		if accessProvider != nil {
-			return nil, fmt.Errorf("only one of AccessProvider or CredentialsProvider can be provided")
-		}
-		accessProvider = option.CredentialsProvider
+		count++
+	}
+	if count == 0 {
+		return nil, fmt.Errorf("one of AccessProvider, Secret, or CredentialsProvider must be provided")
+	}
+	if count > 1 {
+		return nil, fmt.Errorf("only one of AccessProvider, Secret, or CredentialsProvider can be provided")
 	}
 
-	if accessProvider == nil && option.Secret == nil {
-		return nil, fmt.Errorf("either AccessProvider or Secret must be provided")
-	}
-	if accessProvider != nil && option.Secret != nil {
-		return nil, fmt.Errorf("only one of AccessProvider or Secret can be provided")
+	accessProvider := option.AccessProvider
+	if option.CredentialsProvider != nil {
+		accessProvider = option.CredentialsProvider
 	}
 
 	if option.Secret != nil {

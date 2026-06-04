@@ -286,7 +286,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 				var err error
 				provider, err = New(Options{
 					KubeconfigStrategyOption: kubeconfigstrategy.Option{
-						Secret: &kubeconfigstrategy.SecretStrategyOption{
+						Secret: &kubeconfigstrategy.SecretStrategyOption{ //nolint:staticcheck // Keep deprecated Secret strategy coverage for backwards compatibility.
 							ConsumerName: consumerName,
 						},
 					},
@@ -515,7 +515,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 				var err error
 				provider, err = New(Options{
 					KubeconfigStrategyOption: kubeconfigstrategy.Option{
-						Secret: &kubeconfigstrategy.SecretStrategyOption{
+						Secret: &kubeconfigstrategy.SecretStrategyOption{ //nolint:staticcheck // Keep deprecated Secret strategy coverage for backwards compatibility.
 							ConsumerName: consumerName,
 						},
 					},

@@ -35,6 +35,8 @@ type secretStrategy struct {
 }
 
 // SecretStrategyOption holds options for the Secret strategy.
+//
+// Deprecated: Use AccessProviderOption instead.
 type SecretStrategyOption struct {
 	ConsumerName string
 }
