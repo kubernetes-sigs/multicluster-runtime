@@ -49,7 +49,7 @@ func init() {
 }
 
 func main() {
-	credentialsProviderFile := access.SetupProviderFileFlag()
+	providerFile := access.SetupProviderFileFlag()
 	flag.Parse()
 
 	ctrllog.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -63,10 +63,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load credential providers from configuration file
-	credentialsProvider, err := access.NewFromFile(*credentialsProviderFile)
+	// Load access providers from configuration file.
+	accessCfg, err := access.NewFromFile(*providerFile)
 	if err != nil {
-		entryLog.Error(err, "Got error reading credentials providers")
+		entryLog.Error(err, "Got error reading access providers")
 		os.Exit(1)
 	}
 
@@ -74,8 +74,8 @@ func main() {
 	provider, err := clusterinventoryapi.New(clusterinventoryapi.Options{
 		// Specifying the strategy how to fetch kubeconfig from ClusterProfile.
 		KubeconfigStrategyOption: kubeconfigstrategy.Option{
-			CredentialsProvider: &kubeconfigstrategy.CredentialsProviderOption{
-				Provider: credentialsProvider,
+			AccessProvider: &kubeconfigstrategy.AccessProviderOption{
+				Provider: accessCfg,
 			},
 			// // Alternative:
 			// //   You can use the Secret strategy, but it is not recommended for production use.
