@@ -1,6 +1,6 @@
 module sigs.k8s.io/multicluster-runtime/providers/file
 
-go 1.26.3
+go 1.26.0
 
 replace sigs.k8s.io/multicluster-runtime => ../..
 
