@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
@@ -72,6 +73,12 @@ type Options struct {
 	// If not provided, defaults to checking that the Cluster's control plane has
 	// been initialized.
 	IsReady func(ctx context.Context, ccl client.Object) bool
+
+	// Predicates are controller-runtime predicates applied to the Cluster watch.
+	// Only Cluster objects passing all predicates will be reconciled by this provider.
+	// Use this to filter by infrastructure kind, labels, or any other object field
+	// so that non-matching clusters are never processed.
+	Predicates []predicate.Predicate
 }
 
 func setDefaults(opts *Options) {
@@ -152,7 +159,7 @@ func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
 	p.client = localMgr.GetClient()
 
 	if err := builder.ControllerManagedBy(localMgr).
-		For(p.opts.ObjectToWatch).
+		For(p.opts.ObjectToWatch, builder.WithPredicates(p.opts.Predicates...)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}). // no parallelism.
 		Complete(p); err != nil {
 		return fmt.Errorf("failed to create controller: %w", err)
