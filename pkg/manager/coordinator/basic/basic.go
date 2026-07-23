@@ -59,3 +59,8 @@ func (c *Coordinator) Engage(ctx context.Context, name multicluster.ClusterName,
 
 // Runnable returns nil because the basic coordinator has no background work.
 func (c *Coordinator) Runnable() manager.Runnable { return nil }
+
+// Owns always returns true: the basic coordinator engages every cluster
+// unconditionally, so every cluster it knows about is "owned" by this
+// process.
+func (c *Coordinator) Owns(multicluster.ClusterName) bool { return true }
