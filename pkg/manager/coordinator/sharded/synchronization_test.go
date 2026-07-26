@@ -18,6 +18,7 @@ package sharded
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,10 +35,10 @@ import (
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
 
-type stubSharder struct{ own bool }
+type stubSharder struct{ own atomic.Bool }
 
 func (s *stubSharder) ShouldOwn(clusterID string, _ []sharder.PeerInfo, _ sharder.PeerInfo) bool {
-	return s.own
+	return s.own.Load()
 }
 
 type stubRegistry struct{ self sharder.PeerInfo }
@@ -69,7 +70,8 @@ func TestCoordinator_StartsWhenShouldOwnAndFenceAcquired(t *testing.T) {
 		PeerPrefix: "mcr-peer", PeerWeight: 1, Probe: 10 * time.Millisecond,
 	}
 	reg := &stubRegistry{self: sharder.PeerInfo{ID: "peer-0", Weight: 1}}
-	sh := &stubSharder{own: true}
+	sh := &stubSharder{}
+	sh.own.Store(true)
 	c := New(cli, logr.Discard(),
 		withConfig(cfg),
 		WithPeerRegistry(reg),
@@ -121,7 +123,8 @@ func TestCoordinator_StopsAndReleasesWhenShouldOwnFalse(t *testing.T) {
 		PeerPrefix: "mcr-peer", PeerWeight: 1, Probe: 10 * time.Millisecond,
 	}
 	reg := &stubRegistry{self: sharder.PeerInfo{ID: "peer-0", Weight: 1}}
-	sh := &stubSharder{own: true}
+	sh := &stubSharder{}
+	sh.own.Store(true)
 	c := New(cli, logr.Discard(),
 		withConfig(cfg),
 		WithPeerRegistry(reg),
@@ -140,7 +143,7 @@ func TestCoordinator_StopsAndReleasesWhenShouldOwnFalse(t *testing.T) {
 	c.recompute(ctx)
 
 	// Flip ownership to false and recompute; coordinator should stop and release fence
-	sh.own = false
+	sh.own.Store(false)
 	c.recompute(ctx)
 
 	// Poll for lease holder cleared by Release()
