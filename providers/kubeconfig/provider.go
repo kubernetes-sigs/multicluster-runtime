@@ -49,6 +49,9 @@ const (
 
 	// DefaultKubeconfigSecretKey is the default key in the secret data that contains the kubeconfig
 	DefaultKubeconfigSecretKey = "kubeconfig"
+
+	// DefaultControllerName is the default controller name.
+	DefaultControllerName = "kubeconfig-provider"
 )
 
 var _ multicluster.Provider = &Provider{}
@@ -61,6 +64,9 @@ func New(opts Options) *Provider {
 	}
 	if opts.KubeconfigSecretKey == "" {
 		opts.KubeconfigSecretKey = DefaultKubeconfigSecretKey
+	}
+	if opts.ControllerName == "" {
+		opts.ControllerName = DefaultControllerName
 	}
 
 	return &Provider{
@@ -82,6 +88,8 @@ type Options struct {
 	ClusterOptions []cluster.Option
 	// RESTOptions is the list of options to pass to the rest client.
 	RESTOptions []func(cfg *rest.Config) error
+	// ControllerName is passed to the controller setup.
+	ControllerName string
 }
 
 type index struct {
@@ -167,7 +175,7 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 					obj.GetLabels()[p.opts.KubeconfigSecretLabel] == "true"
 			},
 		))).
-		Named("kubeconfig-provider").
+		Named(p.opts.ControllerName).
 		Complete(p)
 	if err != nil {
 		return fmt.Errorf("failed to create controller: %w", err)
