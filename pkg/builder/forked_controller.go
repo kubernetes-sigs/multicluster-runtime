@@ -76,6 +76,7 @@ type TypedBuilder[request mcreconcile.ClusterAware[request]] struct {
 	newController    func(name string, mgr mcmanager.Manager, options controller.TypedOptions[request]) (mccontroller.TypedController[request], error)
 
 	enableClusterNotFoundWrapper *bool
+	enableOwnershipWrapper       *bool
 }
 
 // ControllerManagedBy returns a new controller builder that will be started by the provided Manager.
@@ -270,6 +271,20 @@ func (blder *TypedBuilder[request]) WithLogConstructor(logConstructor func(*requ
 // and can be disabled with this builder method by setting it to false.
 func (blder *TypedBuilder[request]) WithClusterNotFoundWrapper(enabled bool) *TypedBuilder[request] {
 	blder.enableClusterNotFoundWrapper = ptr.To(enabled)
+	return blder
+}
+
+// WithOwnershipWrapper enables or disables a reconciler that is wrapped around the original
+// reconciler added to this builder. [reconcile.OwnershipWrapper] skips invoking the reconciler
+// for requests whose cluster this process does not currently own, per the Manager's configured
+// Coordinator, returning a successful no-op result instead. This protects reconcilers that
+// reach a cluster through a path other than a coordinator-gated per-cluster watch — for example
+// a raw source registered against a single, fixed cluster via Source.ForCluster, whose events
+// can reference any cluster known to the provider regardless of this process's ownership of it.
+// This wrapper is enabled by default and can be disabled with this builder method by setting it
+// to false.
+func (blder *TypedBuilder[request]) WithOwnershipWrapper(enabled bool) *TypedBuilder[request] {
+	blder.enableOwnershipWrapper = ptr.To(enabled)
 	return blder
 }
 
@@ -472,6 +487,13 @@ func (blder *TypedBuilder[request]) doController(r reconcile.TypedReconciler[req
 	// the ClusterNotFound wrapper is enabled by default, but can be disabled with WithClusterNotFoundWrapper(false).
 	if ptr.Deref(blder.enableClusterNotFoundWrapper, true) {
 		ctrlOptions.Reconciler = mcreconcile.NewClusterNotFoundWrapper(ctrlOptions.Reconciler)
+	}
+
+	// the ownership wrapper is enabled by default, but can be disabled with WithOwnershipWrapper(false).
+	// It runs outermost so a request for a cluster this process doesn't own is skipped before any
+	// other reconcile logic (including the ClusterNotFound wrapper above) runs.
+	if ptr.Deref(blder.enableOwnershipWrapper, true) {
+		ctrlOptions.Reconciler = mcreconcile.NewOwnershipWrapper(ctrlOptions.Reconciler, blder.mgr)
 	}
 
 	// Retrieve the GVK from the object we're reconciling

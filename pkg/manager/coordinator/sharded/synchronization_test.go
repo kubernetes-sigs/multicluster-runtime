@@ -110,6 +110,61 @@ func TestCoordinator_StartsWhenShouldOwnAndFenceAcquired(t *testing.T) {
 	}
 }
 
+func TestCoordinator_Owns(t *testing.T) {
+	s := runtime.NewScheme()
+	if err := coordinationv1.AddToScheme(s); err != nil {
+		t.Fatalf("scheme: %v", err)
+	}
+	cli := fake.NewClientBuilder().WithScheme(s).Build()
+
+	cfg := Config{
+		FenceNS: "kube-system", FencePrefix: "mcr-shard", PerClusterLease: true,
+		LeaseDuration: 3 * time.Second, LeaseRenew: 50 * time.Millisecond, FenceThrottle: 50 * time.Millisecond,
+		PeerPrefix: "mcr-peer", PeerWeight: 1, Probe: 10 * time.Millisecond,
+	}
+	reg := &stubRegistry{self: sharder.PeerInfo{ID: "peer-0", Weight: 1}}
+	sh := &stubSharder{own: true}
+	c := New(cli, logr.Discard(),
+		withConfig(cfg),
+		WithPeerRegistry(reg),
+		WithSharder(sh),
+	)
+	c.AddAware(&stubRunnable{called: make(chan multicluster.ClusterName, 1)})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if c.Owns("zoo") {
+		t.Fatalf("expected Owns to be false before engagement")
+	}
+
+	if err := c.Engage(ctx, "zoo", nil); err != nil {
+		t.Fatalf("engage: %v", err)
+	}
+
+	if c.Owns("zoo") {
+		t.Fatalf("expected Owns to be false before ownership is decided and the fence acquired")
+	}
+
+	// Force a recompute to decide and start.
+	c.recompute(ctx)
+
+	if !c.Owns("zoo") {
+		t.Fatalf("expected Owns to be true once the fence lease is acquired and runnables started")
+	}
+	if c.Owns("unknown-cluster") {
+		t.Fatalf("expected Owns to be false for a cluster never engaged")
+	}
+
+	// Flip ownership to false and recompute; Owns should reflect the stop.
+	sh.own = false
+	c.recompute(ctx)
+
+	if c.Owns("zoo") {
+		t.Fatalf("expected Owns to be false after losing ownership")
+	}
+}
+
 func TestCoordinator_StopsAndReleasesWhenShouldOwnFalse(t *testing.T) {
 	s := runtime.NewScheme()
 	if err := coordinationv1.AddToScheme(s); err != nil {
