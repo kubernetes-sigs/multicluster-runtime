@@ -144,6 +144,14 @@ func (p *Provider) startProvider(ctx context.Context, providerName string, aware
 		return
 	}
 
+	p.lock.RLock()
+	for _, indexer := range p.indexers {
+		if err := provider.IndexField(ctx, indexer.Object, indexer.Field, indexer.Extractor); err != nil {
+			p.log.Error(err, "failed to apply indexer to provider", "providerName", providerName, "object", fmt.Sprintf("%T", indexer.Object), "field", indexer.Field)
+		}
+	}
+	p.lock.RUnlock()
+
 	runnable, ok := provider.(multicluster.ProviderRunnable)
 	if !ok {
 		p.log.Info("provider is not runnable, not starting", "providerName", providerName)
@@ -177,14 +185,6 @@ func (p *Provider) startProvider(ctx context.Context, providerName string, aware
 			p.log.Error(err, "error in provider", "providerName", providerName)
 		}
 	}()
-
-	p.lock.RLock()
-	for _, indexer := range p.indexers {
-		if err := provider.IndexField(ctx, indexer.Object, indexer.Field, indexer.Extractor); err != nil {
-			p.log.Error(err, "failed to apply indexer to provider", "providerName", providerName, "object", fmt.Sprintf("%T", indexer.Object), "field", indexer.Field)
-		}
-	}
-	p.lock.RUnlock()
 }
 
 func (p *Provider) splitClusterName(clusterName multicluster.ClusterName) (string, multicluster.ClusterName) {
@@ -287,6 +287,13 @@ func (p *Provider) IndexField(ctx context.Context, obj client.Object, field stri
 		Field:     field,
 		Extractor: extractValue,
 	})
+	// Exit early if the multi provider isn't running.
+	// If it isn't running the indexes are applied to every provider and
+	// then again when the multi provider is started (which starts each
+	// runnable provider).
+	if p.providerNameCh == nil {
+		return nil
+	}
 	var errs error
 	for providerName, provider := range p.providers {
 		if err := provider.IndexField(ctx, obj, field, extractValue); err != nil {
