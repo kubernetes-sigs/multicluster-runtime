@@ -44,6 +44,14 @@ type Coordinator interface {
 	// (e.g., membership refresh, fencing). Return nil if no background work
 	// is needed.
 	Runnable() manager.Runnable
+
+	// Owns reports whether this process currently owns (has fully started
+	// runnables for) the named cluster. Callers that obtain a cluster
+	// connection through means other than an Engage callback (e.g. Manager.
+	// GetCluster) should consult this before reading or writing that
+	// cluster's resources, since a cluster being reachable does not imply
+	// this process was granted ownership of it.
+	Owns(name multicluster.ClusterName) bool
 }
 
 // WithCoordinator sets a custom Coordinator. EXPERIMENTAL: not a stable API.

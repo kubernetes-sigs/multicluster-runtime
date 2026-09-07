@@ -169,6 +169,22 @@ func defaultConfig() Config {
 	}
 }
 
+// Owns reports whether this process currently holds the fence lease and has
+// fully started runnables for the named cluster. Returns false for clusters
+// that are unknown, not yet started, or whose engagement has been stopped
+// (e.g. because a rehash decided another peer should own it, or the fence
+// lease was lost). Callers that obtain a cluster connection through a path
+// other than an Engage callback — such as Manager.GetCluster — must consult
+// this before reading or writing that cluster's resources: the cluster being
+// reachable does not imply this process was granted ownership of it.
+func (c *Coordinator) Owns(name multicluster.ClusterName) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	engm, ok := c.engaged[name]
+	return ok && engm.started
+}
+
 func (c *Coordinator) fenceName(cluster string) string {
 	if c.cfg.PerClusterLease {
 		return fmt.Sprintf("%s-%s", c.cfg.FencePrefix, sanitize.DNS1123(cluster))

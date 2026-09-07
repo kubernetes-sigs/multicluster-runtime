@@ -24,6 +24,17 @@ var (
 	// ErrClusterNotFound can be returned by provider implementations if the cluster requested
 	// doesn't exist and cannot be constructed.
 	ErrClusterNotFound = errClusterNotFound()
+
+	// ErrClusterNotOwned is returned by Manager.GetCluster when the named
+	// cluster is known to the provider but this process has not been
+	// granted ownership of it by the configured Coordinator. Callers should
+	// treat this as a normal, expected condition — not an error worth
+	// logging or retrying aggressively — since another process owns the
+	// cluster and is responsible for it. Ownership may be granted later
+	// (e.g. after a rehash or a lease change).
+	ErrClusterNotOwned = errClusterNotOwned()
 )
 
 func errClusterNotFound() error { return errors.New("cluster not found") }
+
+func errClusterNotOwned() error { return errors.New("cluster is not owned by this process") }
