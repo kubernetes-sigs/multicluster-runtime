@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 
 	"golang.org/x/sync/errgroup"
 
@@ -39,6 +40,7 @@ import (
 
 	mcbuilder "sigs.k8s.io/multicluster-runtime/pkg/builder"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 	nsprovider "sigs.k8s.io/multicluster-runtime/providers/namespace"
 
@@ -57,6 +59,7 @@ var _ = Describe("Provider Multi", Ordered, func() {
 	var cloud1client, cloud2client client.Client
 	var cloud1cluster, cloud2cluster cluster.Cluster
 	var cloud1provider, cloud2provider *nsprovider.Provider
+	var counting *countingProvider
 
 	BeforeAll(func() {
 		By("Setting up the first namespace provider", func() {
@@ -168,6 +171,17 @@ var _ = Describe("Provider Multi", Ordered, func() {
 			runtime.Must(client.IgnoreAlreadyExists(cloud2client.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "island", Name: "selkirk", Labels: map[string]string{"type": "human"}}})))
 		})
 
+		By("Adding a counting provider and an index before starting the manager", func() {
+			counting = &countingProvider{}
+			Expect(provider.AddProvider("counting", counting)).To(Succeed())
+
+			err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, "phase", func(obj client.Object) []string {
+				return []string{obj.GetLabels()["phase"]}
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(counting.indexFieldCalls.Load()).To(BeZero())
+		})
+
 		By("Starting the manager", func() {
 			g.Go(func() error {
 				return ignoreCanceled(mgr.Start(ctx))
@@ -275,6 +289,16 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		Expect(cms.Items[0].Namespace).To(Equal("default"))
 	})
 
+	It("applies each index exactly once to a runnable provider", func() {
+		// One index registered before start, one after: two applications total.
+		Eventually(func() int64 {
+			return counting.indexFieldCalls.Load()
+		}, testTimeout).Should(Equal(int64(2)))
+		Consistently(func() int64 {
+			return counting.indexFieldCalls.Load()
+		}, "1s").Should(Equal(int64(2)))
+	})
+
 	AfterAll(func() {
 		By("Stopping the provider, cluster, manager, and controller", func() {
 			cancel()
@@ -285,6 +309,27 @@ var _ = Describe("Provider Multi", Ordered, func() {
 		})
 	})
 })
+
+var _ multicluster.ProviderRunnable = &countingProvider{}
+
+// countingProvider counts how often IndexField is called.
+type countingProvider struct {
+	indexFieldCalls atomic.Int64
+}
+
+func (c *countingProvider) Get(_ context.Context, _ multicluster.ClusterName) (cluster.Cluster, error) {
+	return nil, multicluster.ErrClusterNotFound
+}
+
+func (c *countingProvider) IndexField(_ context.Context, _ client.Object, _ string, _ client.IndexerFunc) error {
+	c.indexFieldCalls.Add(1)
+	return nil
+}
+
+func (c *countingProvider) Start(ctx context.Context, _ multicluster.Aware) error {
+	<-ctx.Done()
+	return nil
+}
 
 func ignoreCanceled(err error) error {
 	if errors.Is(err, context.Canceled) {
