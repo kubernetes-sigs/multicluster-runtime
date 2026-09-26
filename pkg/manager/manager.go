@@ -169,16 +169,33 @@ func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider, mcOpt
 	return m, nil
 }
 
+// ErrClusterNotOwned is returned by GetCluster when the named cluster is
+// known to the provider but this process has not been granted ownership of
+// it by the configured Coordinator. See [multicluster.ErrClusterNotOwned].
+var ErrClusterNotOwned = multicluster.ErrClusterNotOwned
+
 // GetCluster returns a cluster for the given identifying cluster name. Get
 // returns an existing cluster if it has been created before.
 // If no cluster is known to the provider under the given cluster name,
 // an error should be returned.
+//
+// If a Coordinator is configured, GetCluster only returns a cluster this
+// process currently owns; it returns ErrClusterNotOwned otherwise. This
+// matters for any watch or event source that is not itself scoped to a
+// single, coordinator-engaged cluster (for example a source registered
+// against a fixed, shared cluster via Source.ForCluster) — such a source can
+// produce reconcile requests naming a cluster this process was never
+// engaged for, and without this check GetCluster would hand back a live,
+// working client for it regardless of ownership.
 func (m *mcManager) GetCluster(ctx context.Context, clusterName multicluster.ClusterName) (cluster.Cluster, error) {
 	if clusterName == LocalCluster {
 		return m.Manager, nil
 	}
 	if m.provider == nil {
 		return nil, fmt.Errorf("no multicluster provider set, but cluster %q passed", clusterName)
+	}
+	if m.coord != nil && !m.coord.Owns(clusterName) {
+		return nil, ErrClusterNotOwned
 	}
 	return m.provider.Get(ctx, clusterName)
 }
