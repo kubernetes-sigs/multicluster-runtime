@@ -38,4 +38,6 @@ fi
 if [[ -z ${CI} ]]; then
     header_text "running golangci-lint"
     make lint
+    header_text "running govulncheck"
+    make govulncheck
 fi
