@@ -1,5 +1,8 @@
 name: CI
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, edited, synchronize, reopened]
     branches:
@@ -103,3 +106,37 @@ jobs:
         go-version: ${{ steps.vars.outputs.go_version }}
     - name: make verify-modules
       run: MAKEFLAGS="-s" make verify-modules
+
+  govulncheck-matrix:
+    name: govulncheck [${{ matrix.working-directory }}]
+    runs-on: ubuntu-latest
+    needs:
+      - list-modules
+    strategy:
+      fail-fast: false
+      matrix:
+        working-directory: ${{ fromJSON(needs.list-modules.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # tag=v7.0.1
+      - name: Calculate go version
+        id: vars
+        run: echo "go_version=$(make go-version)" >> $GITHUB_OUTPUT
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # tag=v7.0.0
+        with:
+          go-version: ${{ steps.vars.outputs.go_version }}
+      - name: govulncheck
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # tag=v1.1.0
+        with:
+          working-directory: ${{ matrix.working-directory }}
+
+  govulncheck: # aggregate the results of the matrix job. This we can depend on in the branch protection rule.
+    name: govulncheck
+    runs-on: ubuntu-latest
+    needs:
+    - govulncheck-matrix
+    if: (failure() || success()) && !contains(needs.govulncheck-matrix.result, 'skipped')
+    steps:
+    - name: noop
+      run: exit 1
+      if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
