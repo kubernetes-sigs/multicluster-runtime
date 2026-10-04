@@ -10,7 +10,7 @@ replace (
 require (
 	k8s.io/api v0.37.0
 	k8s.io/apimachinery v0.37.0
-	sigs.k8s.io/controller-runtime v0.25.0
+	sigs.k8s.io/controller-runtime v0.25.2
 	sigs.k8s.io/multicluster-runtime v0.24.1
 	sigs.k8s.io/multicluster-runtime/providers/kind v0.22.0-beta.0
 )
