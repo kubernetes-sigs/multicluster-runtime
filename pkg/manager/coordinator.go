@@ -48,9 +48,9 @@ type Coordinator interface {
 	// Owns reports whether this process currently owns (has fully started
 	// runnables for) the named cluster. Callers that obtain a cluster
 	// connection through means other than an Engage callback (e.g. Manager.
-	// GetCluster) should consult this before reading or writing that
-	// cluster's resources, since a cluster being reachable does not imply
-	// this process was granted ownership of it.
+	// GetCluster) should consult this before acting for that cluster, such as
+	// reconciling it, since a cluster being reachable does not imply this
+	// process was granted ownership of it.
 	Owns(name multicluster.ClusterName) bool
 }
 
