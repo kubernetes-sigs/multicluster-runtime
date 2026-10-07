@@ -19,12 +19,12 @@ package namespace
 import (
 	"context"
 
-	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/recorder"
 
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
@@ -58,7 +58,7 @@ func (c *NamespacedCluster) GetEventRecorderFor(name string) record.EventRecorde
 }
 
 // GetEventRecorder returns an EventRecorder for the provided name.
-func (c *NamespacedCluster) GetEventRecorder(name string) events.EventRecorder {
+func (c *NamespacedCluster) GetEventRecorder(name string) recorder.EventRecorder {
 	panic("implement me")
 }
 
