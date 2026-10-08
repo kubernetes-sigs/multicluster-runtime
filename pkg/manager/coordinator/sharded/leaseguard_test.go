@@ -193,3 +193,62 @@ func TestRelease_NoHoldIsNoop(t *testing.T) {
 	g.Release(context.Background())
 	// Nothing to assert other than "does not panic"
 }
+
+// The coordinator releases a fence from its decision loop and from engagement
+// cleanup at once; both must leave the Lease released without a data race.
+func TestRelease_ConcurrentCallsAreSerialised(t *testing.T) {
+	s := newScheme(t)
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	g := newLeaseGuard(c, testNS, testName, testID, 3*time.Second, time.Second, nil)
+	if !g.TryAcquire(context.Background()) {
+		t.Fatalf("expected to acquire")
+	}
+
+	done := make(chan struct{})
+	for range 2 {
+		go func() {
+			g.Release(context.Background())
+			done <- struct{}{}
+		}()
+	}
+	<-done
+	<-done
+
+	ls := &coordinationv1.Lease{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: testNS, Name: testName}, ls); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if ls.Spec.HolderIdentity != nil && *ls.Spec.HolderIdentity != "" {
+		t.Fatalf("expected the Lease released, holder is %q", *ls.Spec.HolderIdentity)
+	}
+}
+
+// A renew loop that finds its Lease lost releases its own hold, never one a
+// later TryAcquire made.
+func TestReleaseHold_LeavesALaterHold(t *testing.T) {
+	s := newScheme(t)
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	g := newLeaseGuard(c, testNS, testName, testID, 3*time.Second, time.Hour, nil)
+	if !g.TryAcquire(context.Background()) {
+		t.Fatalf("expected to acquire")
+	}
+	first := g.loop
+	g.Release(context.Background())
+	if !g.TryAcquire(context.Background()) {
+		t.Fatalf("expected to acquire again")
+	}
+
+	g.releaseHold(first)
+
+	if !g.held {
+		t.Fatalf("expected the later hold to stay")
+	}
+	ls := &coordinationv1.Lease{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: testNS, Name: testName}, ls); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if ls.Spec.HolderIdentity == nil || *ls.Spec.HolderIdentity != testID {
+		t.Fatalf("expected the Lease still held by %s", testID)
+	}
+	g.Release(context.Background())
+}
