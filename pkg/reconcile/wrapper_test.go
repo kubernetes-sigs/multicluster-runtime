@@ -23,21 +23,19 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
+
+	_ "github.com/onsi/ginkgo/v2"
 )
 
-type stubClusterGetter struct {
+type stubClusterOwner struct {
 	owned map[multicluster.ClusterName]bool
 }
 
-func (g *stubClusterGetter) GetCluster(_ context.Context, name multicluster.ClusterName) (cluster.Cluster, error) {
-	if g.owned[name] {
-		return nil, nil
-	}
-	return nil, multicluster.ErrClusterNotOwned
+func (g *stubClusterOwner) Owns(name multicluster.ClusterName) bool {
+	return g.owned[name]
 }
 
 type countingReconciler struct {
@@ -51,7 +49,7 @@ func (r *countingReconciler) Reconcile(context.Context, Request) (reconcile.Resu
 
 func TestOwnershipWrapper_SkipsNonOwnedCluster(t *testing.T) {
 	inner := &countingReconciler{}
-	mgr := &stubClusterGetter{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
+	mgr := &stubClusterOwner{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
 	wrapped := NewOwnershipWrapper(inner, mgr)
 
 	req := Request{
@@ -73,7 +71,7 @@ func TestOwnershipWrapper_SkipsNonOwnedCluster(t *testing.T) {
 
 func TestOwnershipWrapper_CallsThroughForOwnedCluster(t *testing.T) {
 	inner := &countingReconciler{}
-	mgr := &stubClusterGetter{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
+	mgr := &stubClusterOwner{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
 	wrapped := NewOwnershipWrapper(inner, mgr)
 
 	req := Request{
@@ -93,7 +91,7 @@ func TestOwnershipWrapper_CallsThroughForLocalCluster(t *testing.T) {
 	inner := &countingReconciler{}
 	// No clusters known to the getter at all; the local cluster must still
 	// pass through without ever consulting it.
-	mgr := &stubClusterGetter{}
+	mgr := &stubClusterOwner{}
 	wrapped := NewOwnershipWrapper(inner, mgr)
 
 	req := Request{Request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "obj"}}}
@@ -111,7 +109,7 @@ func TestOwnershipWrapper_PropagatesOtherErrors(t *testing.T) {
 	inner := Func(func(context.Context, Request) (reconcile.Result, error) {
 		return reconcile.Result{}, boom
 	})
-	mgr := &stubClusterGetter{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
+	mgr := &stubClusterOwner{owned: map[multicluster.ClusterName]bool{"owned-cluster": true}}
 	wrapped := NewOwnershipWrapper(inner, mgr)
 
 	req := Request{
