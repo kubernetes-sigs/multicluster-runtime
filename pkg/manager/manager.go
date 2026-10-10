@@ -93,6 +93,10 @@ type Manager interface {
 	// an error should be returned.
 	GetCluster(ctx context.Context, clusterName multicluster.ClusterName) (cluster.Cluster, error)
 
+	// Owns reports whether this process currently owns the named cluster, per
+	// the configured Coordinator. The local cluster is always owned.
+	Owns(clusterName multicluster.ClusterName) bool
+
 	// ClusterFromContext returns the default cluster set in the context.
 	ClusterFromContext(ctx context.Context) (cluster.Cluster, error)
 
@@ -173,6 +177,10 @@ func WithMultiCluster(mgr manager.Manager, provider multicluster.Provider, mcOpt
 // returns an existing cluster if it has been created before.
 // If no cluster is known to the provider under the given cluster name,
 // an error should be returned.
+//
+// GetCluster does not consult the Coordinator: a webhook or a read of another
+// cluster needs a client for a cluster this process does not own. Use Owns to
+// decide whether this process should act for a cluster.
 func (m *mcManager) GetCluster(ctx context.Context, clusterName multicluster.ClusterName) (cluster.Cluster, error) {
 	if clusterName == LocalCluster {
 		return m.Manager, nil
@@ -181,6 +189,15 @@ func (m *mcManager) GetCluster(ctx context.Context, clusterName multicluster.Clu
 		return nil, fmt.Errorf("no multicluster provider set, but cluster %q passed", clusterName)
 	}
 	return m.provider.Get(ctx, clusterName)
+}
+
+// Owns reports whether this process currently owns the named cluster, per the
+// configured Coordinator. The local cluster is always owned.
+func (m *mcManager) Owns(clusterName multicluster.ClusterName) bool {
+	if clusterName == LocalCluster || m.coord == nil {
+		return true
+	}
+	return m.coord.Owns(clusterName)
 }
 
 // ClusterFromContext returns the default cluster set in the context.
