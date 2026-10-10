@@ -53,6 +53,7 @@ TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/bin)
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/golangci-lint)
 GO_APIDIFF := $(TOOLS_BIN_DIR)/go-apidiff
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+GO_VULNCHECK := $(abspath $(TOOLS_BIN_DIR)/govulncheck)
 GO_INSTALL := ./hack/go-install.sh
 
 # The help will print out all targets with their descriptions organized bellow their categories. The categories are represented by `##@` and the target descriptions by `##`.
@@ -114,6 +115,14 @@ GO_MOD_CHECK_IGNORE := $(abspath .gomodcheck.yaml)
 $(GO_MOD_CHECK): # Build gomodcheck.
 	go build -C $(GO_MOD_CHECK_DIR) -o $(GO_MOD_CHECK)
 
+GO_VULNCHECK_VER := v1.8.0
+GO_VULNCHECK_BIN := govulncheck
+GO_VULNCHECK := $(abspath $(TOOLS_BIN_DIR)/$(GO_VULNCHECK_BIN)-$(GO_VULNCHECK_VER))
+GO_VULNCHECK_PKG := golang.org/x/vuln/cmd/govulncheck
+
+$(GO_VULNCHECK): # Build govulncheck from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GO_VULNCHECK_PKG) $(GO_VULNCHECK_BIN) $(GO_VULNCHECK_VER)
+
 ## --------------------------------------
 ## Linting
 ## --------------------------------------
@@ -141,6 +150,17 @@ imports: $(GOLANGCI_LINT) ## Format module imports.
 	else \
 	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
 		(cd $$MOD; $(GOLANGCI_LINT) fmt --enable gci -c $(ROOT_DIR)/.golangci.yml); \
+	  done; \
+	fi
+
+.PHONY: govulncheck
+govulncheck: WHAT ?=
+govulncheck: $(GO_VULNCHECK) ## Run govulncheck.
+	@if [ -n "$(WHAT)" ]; then \
+		(cd $(WHAT); $(GO_VULNCHECK) ./...); \
+	else \
+	  for MOD in . $$(git ls-files '**/go.mod' | sed 's,/go.mod,,'); do \
+		(cd $$MOD; $(GO_VULNCHECK) ./...); \
 	  done; \
 	fi
 
