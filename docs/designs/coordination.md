@@ -74,6 +74,7 @@ The sharding coordinator combines three building blocks:
 ### Failure handling
 
 - Lease expirations drive failover; no explicit release is required.
+- `WithPeerReleaseOnCancel` makes a stopping peer release its peer Lease, so the others drop it on their next refresh.
 - Throttling prevents tight retry loops when a fence is contested or the API is temporarily unavailable.
 
 ## Future work

@@ -48,6 +48,7 @@ import (
 // Peers (membership):
 //   - PeerPrefix: prefix used by the peer registry for membership Leases.
 //   - PeerWeight: relative capacity hint used by the sharder (0 treated as 1).
+//   - PeerReleaseOnCancel: release the peer Lease when the coordinator stops (off by default).
 //
 // Cadence:
 //   - Probe: periodic synchronization tick interval (decision loop).
@@ -72,6 +73,9 @@ type Config struct {
 	PeerPrefix string
 	// PeerWeight is this peer’s capacity hint for HRW (0 treated as 1).
 	PeerWeight uint32
+	// PeerReleaseOnCancel makes the default peer registry release this peer's
+	// Lease when the coordinator stops, so the other peers take over sooner.
+	PeerReleaseOnCancel bool
 
 	// Probe is the synchronization decision loop interval.
 	Probe time.Duration
@@ -153,7 +157,8 @@ func New(kube client.Client, log logr.Logger, opts ...Option) *Coordinator {
 
 	// Default peer registry if not injected.
 	if c.peers == nil {
-		c.peers = peers.NewLeaseRegistry(kube, c.cfg.FenceNS, c.cfg.PeerPrefix, "", c.cfg.PeerWeight, log)
+		c.peers = peers.NewLeaseRegistryWithOptions(kube, c.cfg.FenceNS, c.cfg.PeerPrefix, "", c.cfg.PeerWeight, log,
+			peers.WithReleaseOnCancel(c.cfg.PeerReleaseOnCancel))
 	}
 
 	c.self = c.peers.Self()

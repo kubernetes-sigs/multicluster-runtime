@@ -40,6 +40,16 @@ func WithPeerWeight(w uint32) Option {
 	}
 }
 
+// WithPeerReleaseOnCancel makes the default peer registry release this peer's
+// Lease when the coordinator stops, so the other peers take over its clusters
+// on their next refresh rather than when the ttl runs out. Off by default; it
+// does not apply with WithPeerRegistry.
+func WithPeerReleaseOnCancel(on bool) Option {
+	return func(c *Coordinator) {
+		c.cfg.PeerReleaseOnCancel = on
+	}
+}
+
 // WithShardLease configures the fencing Lease ns/prefix (mcr-shard-* by default).
 func WithShardLease(ns, name string) Option {
 	return func(c *Coordinator) {

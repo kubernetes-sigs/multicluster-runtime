@@ -226,12 +226,24 @@ func TestRun_PublishesSelfAndStopsOnCancel(t *testing.T) {
 	}
 }
 
-// A process that stops releases its Lease, so the other peers drop it on their
-// next refresh instead of keeping it in the hash until its ttl runs out.
-func TestRun_ReleasesSelfOnCancel(t *testing.T) {
+// A process that stops keeps its Lease until the ttl runs out, unless
+// WithReleaseOnCancel is set: then the other peers drop it on their next refresh.
+func TestRun_ReleaseOnCancel(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		release bool
+	}{
+		{"default keeps the Lease", false},
+		{"WithReleaseOnCancel releases it", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) { testRunOnCancel(t, tc.release) })
+	}
+}
+
+func testRunOnCancel(t *testing.T, release bool) {
 	s := newScheme(t)
 	c := fake.NewClientBuilder().WithScheme(s).Build()
-	r := NewLeaseRegistry(c, testNS, prefix, selfID, 1, logr.Discard()).(*leaseRegistry)
+	r := NewLeaseRegistryWithOptions(c, testNS, prefix, selfID, 1, logr.Discard(), WithReleaseOnCancel(release)).(*leaseRegistry)
 	r.ttl = 30 * time.Second
 	r.renew = 50 * time.Millisecond
 	other := NewLeaseRegistry(c, testNS, prefix, otherID, 1, logr.Discard()).(*leaseRegistry)
@@ -258,14 +270,11 @@ func TestRun_ReleasesSelfOnCancel(t *testing.T) {
 		t.Fatalf("Run did not exit after cancel")
 	}
 
-	if ls := getLease(t, c, prefix+"-"+selfID); ls.Spec.HolderIdentity != nil && *ls.Spec.HolderIdentity != "" {
-		t.Fatalf("expected the Lease released, holder is %q", *ls.Spec.HolderIdentity)
-	}
 	if err := other.refreshPeers(context.Background()); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
-	if hasPeer(other.Snapshot(), selfID) {
-		t.Fatalf("expected %s dropped well before its ttl", selfID)
+	if got := hasPeer(other.Snapshot(), selfID); got == release {
+		t.Fatalf("after cancel, %s among the peers = %t, want %t", selfID, got, !release)
 	}
 }
 

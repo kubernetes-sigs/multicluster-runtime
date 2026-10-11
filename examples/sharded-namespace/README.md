@@ -122,6 +122,9 @@ mgr, err := mcmanager.New(cfg, provider, manager.Options{},
 
       // Optional: peer weight for HRW:
       // sharded.WithPeerWeight(1),
+
+      // Optional: release the peer Lease on shutdown, so others take over sooner:
+      // sharded.WithPeerReleaseOnCancel(true),
     ),
   ),
 )
