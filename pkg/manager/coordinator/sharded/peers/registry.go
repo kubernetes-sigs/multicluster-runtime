@@ -68,7 +68,19 @@ type leaseRegistry struct {
 	ttl   time.Duration
 	renew time.Duration
 
+	releaseOnCancel bool
+
 	log logr.Logger
+}
+
+// Option configures a Lease-based Registry.
+type Option func(*leaseRegistry)
+
+// WithReleaseOnCancel makes Run release our Lease when its context ends, so
+// the other peers drop us on their next refresh rather than when the ttl runs
+// out. Off by default.
+func WithReleaseOnCancel(on bool) Option {
+	return func(r *leaseRegistry) { r.releaseOnCancel = on }
 }
 
 // NewLeaseRegistry constructs a Lease-based Registry.
@@ -80,6 +92,12 @@ type leaseRegistry struct {
 //   - weight: relative capacity (0 treated as 1)
 //   - log: logger; use logr.Discard() to silence
 func NewLeaseRegistry(cli crclient.Client, ns, namePrefix string, selfID string, weight uint32, log logr.Logger) Registry {
+	return NewLeaseRegistryWithOptions(cli, ns, namePrefix, selfID, weight, log)
+}
+
+// NewLeaseRegistryWithOptions is NewLeaseRegistry with optional settings,
+// e.g. WithReleaseOnCancel.
+func NewLeaseRegistryWithOptions(cli crclient.Client, ns, namePrefix string, selfID string, weight uint32, log logr.Logger, opts ...Option) Registry {
 	if selfID == "" {
 		if hn, _ := os.Hostname(); hn != "" {
 			selfID = hn
@@ -92,7 +110,7 @@ func NewLeaseRegistry(cli crclient.Client, ns, namePrefix string, selfID string,
 	if weight == 0 {
 		weight = defaultWeight
 	}
-	return &leaseRegistry{
+	r := &leaseRegistry{
 		ns:         ns,
 		namePrefix: namePrefix,
 		self:       sharder.PeerInfo{ID: selfID, Weight: weight},
@@ -102,6 +120,10 @@ func NewLeaseRegistry(cli crclient.Client, ns, namePrefix string, selfID string,
 		renew:      10 * time.Second,
 		log:        log.WithName("lease-registry").WithValues("ns", ns, "prefix", namePrefix, "selfID", selfID, "weight", weight),
 	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 func (r *leaseRegistry) Self() sharder.PeerInfo { return r.self }
@@ -134,10 +156,40 @@ func (r *leaseRegistry) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
+			if r.releaseOnCancel {
+				r.release()
+			}
 			return ctx.Err()
 		case <-t.C:
 			// loop
 		}
+	}
+}
+
+// releaseTimeout bounds the release of our Lease, which runs after the run
+// context is cancelled.
+const releaseTimeout = 5 * time.Second
+
+// release clears the holder of our Lease, so the other peers drop this process
+// from their snapshot on their next refresh rather than when the ttl runs out,
+// as client-go's leader election does with ReleaseOnCancel. Best effort: if it
+// fails, the ttl still expires the Lease.
+func (r *leaseRegistry) release() {
+	ctx, cancel := context.WithTimeout(context.Background(), releaseTimeout)
+	defer cancel()
+
+	lease := &coordv1.Lease{}
+	key := crclient.ObjectKey{Namespace: r.ns, Name: fmt.Sprintf("%s-%s", r.namePrefix, r.self.ID)}
+	if err := r.cli.Get(ctx, key, lease); err != nil {
+		r.log.V(1).Info("release: reading our Lease failed; it expires with its ttl", "err", err)
+		return
+	}
+	if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity != r.self.ID {
+		return
+	}
+	lease.Spec.HolderIdentity = ptr.To("")
+	if err := r.cli.Update(ctx, lease); err != nil {
+		r.log.V(1).Info("release: clearing our Lease failed; it expires with its ttl", "err", err)
 	}
 }
 

@@ -73,3 +73,12 @@ func TestOptions_ApplyLeaseAndTimings(t *testing.T) {
 		t.Fatalf("cadence not applied: %+v", cfg)
 	}
 }
+
+func TestOptions_ApplyPeerReleaseOnCancel(t *testing.T) {
+	if New(nil, logr.Discard()).cfg.PeerReleaseOnCancel {
+		t.Fatalf("expected the peer Lease kept on cancel by default")
+	}
+	if !New(nil, logr.Discard(), WithPeerReleaseOnCancel(true)).cfg.PeerReleaseOnCancel {
+		t.Fatalf("expected PeerReleaseOnCancel applied")
+	}
+}
