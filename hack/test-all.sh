@@ -24,12 +24,12 @@ if [[ -n ${ARTIFACTS:-} ]]; then
   GINKGO_ARGS="-ginkgo.junit-report=junit-report.xml"
 fi
 
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.37.0"}
 header_text "installing envtest tools@${ENVTEST_K8S_VERSION} with setup-envtest if necessary"
-ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.30.0"}
 tmp_bin=/tmp/cr-tests-bin
 (
     # don't presume to install for the user
-    GOBIN=${tmp_bin} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.21
+    GOBIN=${tmp_bin} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.25
 )
 export KUBEBUILDER_ASSETS="$(${tmp_bin}/setup-envtest use --use-env -p path "${ENVTEST_K8S_VERSION}")"
 
