@@ -30,6 +30,8 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"sigs.k8s.io/multicluster-runtime/pkg/manager/coordinator/sharded/sharder"
+
 	_ "github.com/onsi/ginkgo/v2"
 )
 
@@ -222,4 +224,56 @@ func TestRun_PublishesSelfAndStopsOnCancel(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Fatalf("Run did not exit after cancel")
 	}
+}
+
+// A process that stops releases its Lease, so the other peers drop it on their
+// next refresh instead of keeping it in the hash until its ttl runs out.
+func TestRun_ReleasesSelfOnCancel(t *testing.T) {
+	s := newScheme(t)
+	c := fake.NewClientBuilder().WithScheme(s).Build()
+	r := NewLeaseRegistry(c, testNS, prefix, selfID, 1, logr.Discard()).(*leaseRegistry)
+	r.ttl = 30 * time.Second
+	r.renew = 50 * time.Millisecond
+	other := NewLeaseRegistry(c, testNS, prefix, otherID, 1, logr.Discard()).(*leaseRegistry)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		_ = r.Run(ctx)
+		close(done)
+	}()
+	time.Sleep(120 * time.Millisecond)
+
+	if err := other.refreshPeers(context.Background()); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if !hasPeer(other.Snapshot(), selfID) {
+		t.Fatalf("expected %s among the peers while it runs", selfID)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatalf("Run did not exit after cancel")
+	}
+
+	if ls := getLease(t, c, prefix+"-"+selfID); ls.Spec.HolderIdentity != nil && *ls.Spec.HolderIdentity != "" {
+		t.Fatalf("expected the Lease released, holder is %q", *ls.Spec.HolderIdentity)
+	}
+	if err := other.refreshPeers(context.Background()); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if hasPeer(other.Snapshot(), selfID) {
+		t.Fatalf("expected %s dropped well before its ttl", selfID)
+	}
+}
+
+func hasPeer(peers []sharder.PeerInfo, id string) bool {
+	for _, p := range peers {
+		if p.ID == id {
+			return true
+		}
+	}
+	return false
 }

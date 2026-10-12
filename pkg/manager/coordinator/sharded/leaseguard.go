@@ -18,6 +18,7 @@ package sharded
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -62,8 +63,17 @@ type leaseGuard struct {
 	renew  time.Duration // renew period
 	onLost func()        // callback when we lose the lease
 
+	// mu serialises TryAcquire and Release, API calls included. The coordinator
+	// calls them from its decision loop, from engagement cleanup and from the
+	// renew loop at once; a Release that cleared held before clearing the holder
+	// could otherwise let a TryAcquire in between, and leave a Lease with no
+	// holder that this guard believes it holds.
+	mu     sync.Mutex
 	held   bool
 	cancel context.CancelFunc
+	// loop is the context of the renew loop of the current hold, so a loop that
+	// outlived its hold releases nothing.
+	loop context.Context
 }
 
 // newLeaseGuard builds a guard; it does not contact the API server.
@@ -75,6 +85,8 @@ func newLeaseGuard(c client.Client, ns, name, id string, ldur, renew time.Durati
 // Returns true iff we own it after this call (or already owned).
 // Fails (returns false) when another non-expired holder exists or API calls error.
 func (g *leaseGuard) TryAcquire(ctx context.Context) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.held {
 		return true
 	}
@@ -127,7 +139,7 @@ func (g *leaseGuard) TryAcquire(ctx context.Context) bool {
 
 	// we own it; start renewer
 	rctx, cancel := context.WithCancel(context.Background())
-	g.cancel = cancel
+	g.cancel, g.loop = cancel, rctx
 	g.held = true
 	go g.renewLoop(rctx, key)
 	return true
@@ -148,7 +160,7 @@ func (g *leaseGuard) renewLoop(ctx context.Context, key types.NamespacedName) {
 				if g.onLost != nil {
 					g.onLost()
 				}
-				g.Release(context.Background())
+				g.releaseHold(ctx)
 				return
 			}
 		}
@@ -178,6 +190,24 @@ func (g *leaseGuard) renewOnce(ctx context.Context, key types.NamespacedName) bo
 
 // Release stops renewing; best-effort clear if we still own it.
 func (g *leaseGuard) Release(ctx context.Context) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.releaseLocked(ctx)
+}
+
+// releaseHold releases the hold whose renew loop runs under loop, and nothing
+// if a later TryAcquire has replaced that hold.
+func (g *leaseGuard) releaseHold(loop context.Context) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.loop != loop {
+		return
+	}
+	g.releaseLocked(context.Background())
+}
+
+// releaseLocked does the work of Release; the caller holds mu.
+func (g *leaseGuard) releaseLocked(ctx context.Context) {
 	if !g.held {
 		return
 	}

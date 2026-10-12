@@ -134,10 +134,38 @@ func (r *leaseRegistry) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
+			r.release()
 			return ctx.Err()
 		case <-t.C:
 			// loop
 		}
+	}
+}
+
+// releaseTimeout bounds the release of our Lease, which runs after the run
+// context is cancelled.
+const releaseTimeout = 5 * time.Second
+
+// release clears the holder of our Lease, so the other peers drop this process
+// from their snapshot on their next refresh rather than when the ttl runs out,
+// as client-go's leader election does with ReleaseOnCancel. Best effort: if it
+// fails, the ttl still expires the Lease.
+func (r *leaseRegistry) release() {
+	ctx, cancel := context.WithTimeout(context.Background(), releaseTimeout)
+	defer cancel()
+
+	lease := &coordv1.Lease{}
+	key := crclient.ObjectKey{Namespace: r.ns, Name: fmt.Sprintf("%s-%s", r.namePrefix, r.self.ID)}
+	if err := r.cli.Get(ctx, key, lease); err != nil {
+		r.log.V(1).Info("release: reading our Lease failed; it expires with its ttl", "err", err)
+		return
+	}
+	if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity != r.self.ID {
+		return
+	}
+	lease.Spec.HolderIdentity = ptr.To("")
+	if err := r.cli.Update(ctx, lease); err != nil {
+		r.log.V(1).Info("release: clearing our Lease failed; it expires with its ttl", "err", err)
 	}
 }
 
