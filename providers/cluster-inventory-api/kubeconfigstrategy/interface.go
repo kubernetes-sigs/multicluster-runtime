@@ -3,7 +3,7 @@ package kubeconfigstrategy
 import (
 	"context"
 
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	clusterinventoryv1alpha2 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 
 	"k8s.io/client-go/rest"
 
@@ -17,7 +17,7 @@ import (
 // It is used to fetch the kubeconfig for a cluster profile.
 type Interface interface {
 	// GetKubeConfig is a function that returns the kubeconfig secret for a cluster profile.
-	GetKubeConfig(ctx context.Context, cli client.Client, clp *clusterinventoryv1alpha1.ClusterProfile) (*rest.Config, error)
+	GetKubeConfig(ctx context.Context, cli client.Client, clp *clusterinventoryv1alpha2.ClusterProfile) (*rest.Config, error)
 
 	// CustomWatches can add custom watches to the provider controller
 	CustomWatches() []CustomWatch
