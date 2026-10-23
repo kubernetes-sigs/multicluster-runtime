@@ -50,7 +50,10 @@ jobs:
       - name: govulncheck
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # tag=v1.1.0
         with:
-          working-directory: ${{ matrix.working-directory }}
+          go-version-input: ${{ steps.vars.outputs.go_version }}
+          check-latest: false
+          repo-checkout: false
+          work-dir: ${{ matrix.working-directory }}
 
   govulncheck: # aggregate the results of the matrix job.
     name: govulncheck

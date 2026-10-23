@@ -18,3 +18,14 @@ excludedModules:
 
   # --- controller-runtime pulls in a newer version here
   - sigs.k8s.io/structured-merge-diff/v6
+
+  # --- golang.org/x/net v0.60.0 fixes GO-2026-6603/6610/6611/6612/6617 and
+  # pulls in the newer golang.org/x modules below. Remove once k8s.io/client-go
+  # requires golang.org/x/net >= v0.60.0.
+  - golang.org/x/mod
+  - golang.org/x/net
+  - golang.org/x/sync
+  - golang.org/x/sys
+  - golang.org/x/term
+  - golang.org/x/text
+  - golang.org/x/tools
