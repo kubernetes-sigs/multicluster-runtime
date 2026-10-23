@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	clusterinventoryv1alpha2 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -55,12 +55,12 @@ type Options struct {
 
 	// NewCluster is a function that creates a new cluster from a rest.Config.
 	// The cluster will be started by the provider.
-	NewCluster func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error)
+	NewCluster func(ctx context.Context, clp *clusterinventoryv1alpha2.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error)
 
 	// IsReady is a function that determines if a cluster is ready.
 	// If not provided, a default readiness check is used which checks for the
 	// ControlPlaneHealthy condition on the ClusterProfile.
-	IsReady func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool
+	IsReady func(ctx context.Context, clp *clusterinventoryv1alpha2.ClusterProfile) bool
 }
 
 type index struct {
@@ -87,13 +87,13 @@ type Provider struct {
 
 func setDefaults(opts *Options) {
 	if opts.NewCluster == nil {
-		opts.NewCluster = func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error) {
+		opts.NewCluster = func(ctx context.Context, clp *clusterinventoryv1alpha2.ClusterProfile, cfg *rest.Config, opts ...cluster.Option) (cluster.Cluster, error) {
 			return cluster.New(cfg, opts...)
 		}
 	}
 	if opts.IsReady == nil {
-		opts.IsReady = func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool {
-			controlPlaneHealthyCondition := meta.FindStatusCondition(clp.Status.Conditions, clusterinventoryv1alpha1.ClusterConditionControlPlaneHealthy)
+		opts.IsReady = func(ctx context.Context, clp *clusterinventoryv1alpha2.ClusterProfile) bool {
+			controlPlaneHealthyCondition := meta.FindStatusCondition(clp.Status.Conditions, clusterinventoryv1alpha2.ClusterConditionControlPlaneHealthy)
 			return controlPlaneHealthyCondition != nil && controlPlaneHealthyCondition.Status == metav1.ConditionTrue
 		}
 	}
@@ -136,7 +136,7 @@ func (p *Provider) SetupWithManager(mgr mcmanager.Manager) error {
 
 	// Create a controller builder
 	controllerBuilder := builder.ControllerManagedBy(localMgr).
-		For(&clusterinventoryv1alpha1.ClusterProfile{}).
+		For(&clusterinventoryv1alpha2.ClusterProfile{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}) // no parallelism.
 
 	// Apply any custom watches provided by the user
@@ -175,7 +175,7 @@ func (p *Provider) Reconcile(ctx context.Context, req reconcile.Request) (reconc
 	log.Info("Reconciling ClusterProfile")
 
 	// get the cluster
-	clp := &clusterinventoryv1alpha1.ClusterProfile{}
+	clp := &clusterinventoryv1alpha2.ClusterProfile{}
 	if err := p.client.Get(ctx, req.NamespacedName, clp); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Error(err, "failed to get cluster profile")

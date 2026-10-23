@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -88,7 +88,7 @@ func (s *secretStrategy) CustomWatches() []CustomWatch {
 }
 
 // GetKubeConfig implements Interface.
-func (s *secretStrategy) GetKubeConfig(ctx context.Context, cli client.Client, clp *v1alpha1.ClusterProfile) (*rest.Config, error) {
+func (s *secretStrategy) GetKubeConfig(ctx context.Context, cli client.Client, clp *v1alpha2.ClusterProfile) (*rest.Config, error) {
 	secrets := corev1.SecretList{}
 	if err := cli.List(ctx, &secrets, client.InNamespace(clp.Namespace), client.MatchingLabels{
 		SecretLabelKeyClusterInventoryConsumer: s.consumerName,
