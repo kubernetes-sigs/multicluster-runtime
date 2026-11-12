@@ -202,6 +202,13 @@ func (c *mcController[request]) MultiClusterWatch(src mcsource.TypedSource[clien
 
 func startWithinContext[request mcreconcile.ClusterAware[request]](ctx context.Context, src source.TypedSource[request]) source.TypedSource[request] {
 	return source.TypedFunc[request](func(ctlCtx context.Context, w workqueue.TypedRateLimitingInterface[request]) error {
+		// A cluster disengaged before the controller started leaves this watch pending, and its cache has stopped:
+		// starting the source would fail, and the controller's Start with it.
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
 		ctx, cancel := context.WithCancel(ctx)
 		go func() {
 			<-ctlCtx.Done()
