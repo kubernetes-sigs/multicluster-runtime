@@ -22,7 +22,7 @@ import (
 	"flag"
 	"os"
 
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	clusterinventoryv1alpha2 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	corev1 "k8s.io/api/core/v1"
@@ -45,7 +45,7 @@ import (
 )
 
 func init() {
-	runtime.Must(clusterinventoryv1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(clusterinventoryv1alpha2.AddToScheme(scheme.Scheme))
 }
 
 func main() {

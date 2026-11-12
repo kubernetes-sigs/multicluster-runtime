@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	clusterinventoryv1alpha2 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -36,7 +36,6 @@ import (
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
 	"k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
@@ -73,7 +72,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 
 	var provider *Provider
 	var mgr mcmanager.Manager
-	var profileMember *clusterinventoryv1alpha1.ClusterProfile
+	var profileMember *clusterinventoryv1alpha2.ClusterProfile
 
 	//
 	// Common Behaviors
@@ -298,14 +297,14 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 			setupAndStartControllers()
 
 			By("Setting up the ClusterProfile for member clusters", func() {
-				profileMember = &clusterinventoryv1alpha1.ClusterProfile{
+				profileMember = &clusterinventoryv1alpha2.ClusterProfile{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "member",
 						Namespace: "default",
 					},
-					Spec: clusterinventoryv1alpha1.ClusterProfileSpec{
+					Spec: clusterinventoryv1alpha2.ClusterProfileSpec{
 						DisplayName: "member",
-						ClusterManager: clusterinventoryv1alpha1.ClusterManager{
+						ClusterManager: clusterinventoryv1alpha2.ClusterManager{
 							Name: "test",
 						},
 					},
@@ -313,7 +312,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 				Expect(cliHub.Create(ctx, profileMember)).To(Succeed())
 				// Mock the control plane health condition
 				profileMember.Status.Conditions = append(profileMember.Status.Conditions, metav1.Condition{
-					Type:               clusterinventoryv1alpha1.ClusterConditionControlPlaneHealthy,
+					Type:               clusterinventoryv1alpha2.ClusterConditionControlPlaneHealthy,
 					Status:             metav1.ConditionTrue,
 					Reason:             "Healthy",
 					Message:            "Control plane is mocked as healthy",
@@ -380,125 +379,95 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 	Context("With access-provider-based kubeconfig strategy", Ordered, func() {
 		accessProviderName := "test"
 
-		type accessProviderTestCase struct {
-			option                  func(*access.Config) kubeconfigstrategy.Option
-			setClusterProfileStatus func(*clusterinventoryv1alpha1.ClusterProfile, clusterinventoryv1alpha1.AccessProvider)
-		}
+		BeforeAll(func() {
+			ctx, cancel = context.WithCancel(context.Background())
+			g, _ = errgroup.WithContext(ctx)
 
-		DescribeTableSubtree("with access provider field",
-			func(tc accessProviderTestCase) {
-				BeforeAll(func() {
-					ctx, cancel = context.WithCancel(context.Background())
-					g, _ = errgroup.WithContext(ctx)
+			createClusters()
 
-					createClusters()
+			By("Setting up the Provider", func() {
+				sa1TokenMember := mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
+				execPluginOutput := fmt.Sprintf(`{
+					"apiVersion": "%s",
+					"kind": "ExecCredential",
+					"status": {
+						"token": "%s"
+					}
+				}`, clientauthenticationv1.SchemeGroupVersion.String(), sa1TokenMember)
 
-					By("Setting up the Provider", func() {
-						sa1TokenMember := mustCreateAdminSAAndToken(ctx, cliMember, "sa1", "default")
-						execPluginOutput := fmt.Sprintf(`{
-							"apiVersion": "%s",
-							"kind": "ExecCredential",
-							"status": {
-								"token": "%s"
-							}
-						}`, clientauthenticationv1.SchemeGroupVersion.String(), sa1TokenMember)
+				accessConfig := access.New([]access.Provider{{
+					Name: accessProviderName,
+					ExecConfig: &clientcmdapi.ExecConfig{
+						APIVersion: clientauthenticationv1.SchemeGroupVersion.String(),
+						Command:    "sh",
+						Args:       []string{"-c", fmt.Sprintf("echo '%s'", execPluginOutput)},
+					},
+				}})
 
-						accessConfig := access.New([]access.Provider{{
-							Name: accessProviderName,
-							ExecConfig: &clientcmdapi.ExecConfig{
-								APIVersion: clientauthenticationv1.SchemeGroupVersion.String(),
-								Command:    "sh",
-								Args:       []string{"-c", fmt.Sprintf("echo '%s'", execPluginOutput)},
-							},
-						}})
-
-						var err error
-						provider, err = New(Options{
-							KubeconfigStrategyOption: tc.option(accessConfig),
-						})
-						Expect(err).NotTo(HaveOccurred())
-						Expect(provider).NotTo(BeNil())
-					})
-
-					setupAndStartControllers()
-
-					By("Setting up the ClusterProfile for member clusters", func() {
-						profileMember = &clusterinventoryv1alpha1.ClusterProfile{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "member",
-								Namespace: "default",
-							},
-							Spec: clusterinventoryv1alpha1.ClusterProfileSpec{
-								DisplayName: "member",
-								ClusterManager: clusterinventoryv1alpha1.ClusterManager{
-									Name: "test",
-								},
-							},
-						}
-						Expect(cliHub.Create(ctx, profileMember)).To(Succeed())
-
-						tc.setClusterProfileStatus(profileMember, clusterinventoryv1alpha1.AccessProvider{
-							Name: accessProviderName,
-							Cluster: clientcmdv1.Cluster{
-								Server:                   cfgMember.Host,
-								CertificateAuthorityData: cfgMember.CAData,
-							},
-						})
-						profileMember.Status.Conditions = append(profileMember.Status.Conditions, metav1.Condition{
-							Type:               clusterinventoryv1alpha1.ClusterConditionControlPlaneHealthy,
-							Status:             metav1.ConditionTrue,
-							Reason:             "Healthy",
-							Message:            "Control plane is mocked as healthy",
-							LastTransitionTime: metav1.Now(),
-						})
-						Expect(cliHub.Status().Update(ctx, profileMember)).To(Succeed())
-					})
-
-					createObjects()
-				})
-
-				assertBasicControllerBehavior()
-				assertClusterIndexBehavior()
-
-				// No need to test for re-engaging the cluster since the kubeconfig is provided by the exec plugin.
-
-				AfterAll(func() {
-					By("Stopping the provider, cluster, manager, and controller", func() {
-						cancel()
-					})
-					By("Waiting for the error group to finish", func() {
-						err := g.Wait()
-						Expect(err).NotTo(HaveOccurred())
-					})
-					shutDownClusters()
-				})
-			},
-			Entry("AccessProvider and status.accessProviders", accessProviderTestCase{
-				option: func(accessConfig *access.Config) kubeconfigstrategy.Option {
-					return kubeconfigstrategy.Option{
+				var err error
+				provider, err = New(Options{
+					KubeconfigStrategyOption: kubeconfigstrategy.Option{
 						AccessProvider: &kubeconfigstrategy.AccessProviderOption{
 							Provider: accessConfig,
 						},
-					}
-				},
-				setClusterProfileStatus: func(clp *clusterinventoryv1alpha1.ClusterProfile, provider clusterinventoryv1alpha1.AccessProvider) {
-					clp.Status.AccessProviders = []clusterinventoryv1alpha1.AccessProvider{provider}
-				},
-			}),
-			Entry("deprecated CredentialsProvider and status.credentialProviders", accessProviderTestCase{
-				option: func(accessConfig *access.Config) kubeconfigstrategy.Option {
-					return kubeconfigstrategy.Option{
-						//nolint:staticcheck // Keep deprecated CredentialsProvider strategy coverage for backwards compatibility.
-						CredentialsProvider: &kubeconfigstrategy.CredentialsProviderOption{
-							Provider: accessConfig,
+					},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(provider).NotTo(BeNil())
+			})
+
+			setupAndStartControllers()
+
+			By("Setting up the ClusterProfile for member clusters", func() {
+				profileMember = &clusterinventoryv1alpha2.ClusterProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "member",
+						Namespace: "default",
+					},
+					Spec: clusterinventoryv1alpha2.ClusterProfileSpec{
+						DisplayName: "member",
+						ClusterManager: clusterinventoryv1alpha2.ClusterManager{
+							Name: "test",
 						},
-					}
-				},
-				setClusterProfileStatus: func(clp *clusterinventoryv1alpha1.ClusterProfile, provider clusterinventoryv1alpha1.AccessProvider) {
-					clp.Status.CredentialProviders = []clusterinventoryv1alpha1.CredentialProvider{provider}
-				},
-			}),
-		)
+					},
+				}
+				Expect(cliHub.Create(ctx, profileMember)).To(Succeed())
+
+				profileMember.Status.AccessProviders = []clusterinventoryv1alpha2.AccessProvider{{
+					Name: accessProviderName,
+					Cluster: clusterinventoryv1alpha2.Cluster{
+						Server:                   cfgMember.Host,
+						CertificateAuthorityData: cfgMember.CAData,
+					},
+				}}
+				profileMember.Status.Conditions = append(profileMember.Status.Conditions, metav1.Condition{
+					Type:               clusterinventoryv1alpha2.ClusterConditionControlPlaneHealthy,
+					Status:             metav1.ConditionTrue,
+					Reason:             "Healthy",
+					Message:            "Control plane is mocked as healthy",
+					LastTransitionTime: metav1.Now(),
+				})
+				Expect(cliHub.Status().Update(ctx, profileMember)).To(Succeed())
+			})
+
+			createObjects()
+		})
+
+		assertBasicControllerBehavior()
+		assertClusterIndexBehavior()
+
+		// No need to test for re-engaging the cluster since the kubeconfig is provided by the exec plugin.
+
+		AfterAll(func() {
+			By("Stopping the provider, cluster, manager, and controller", func() {
+				cancel()
+			})
+			By("Waiting for the error group to finish", func() {
+				err := g.Wait()
+				Expect(err).NotTo(HaveOccurred())
+			})
+			shutDownClusters()
+		})
 	})
 
 	Context("Custom readiness check", Ordered, func() {
@@ -519,7 +488,7 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 							ConsumerName: consumerName,
 						},
 					},
-					IsReady: func(ctx context.Context, clp *clusterinventoryv1alpha1.ClusterProfile) bool {
+					IsReady: func(ctx context.Context, clp *clusterinventoryv1alpha2.ClusterProfile) bool {
 						return true
 					},
 				})
@@ -530,14 +499,14 @@ var _ = Describe("Provider Cluster Inventory API", Ordered, func() {
 			setupAndStartControllers()
 
 			By("Setting up the ClusterProfile for member clusters", func() {
-				profileMember = &clusterinventoryv1alpha1.ClusterProfile{
+				profileMember = &clusterinventoryv1alpha2.ClusterProfile{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "member",
 						Namespace: "default",
 					},
-					Spec: clusterinventoryv1alpha1.ClusterProfileSpec{
+					Spec: clusterinventoryv1alpha2.ClusterProfileSpec{
 						DisplayName: "member",
-						ClusterManager: clusterinventoryv1alpha1.ClusterManager{
+						ClusterManager: clusterinventoryv1alpha2.ClusterManager{
 							Name: "test",
 						},
 					},
@@ -623,7 +592,7 @@ func mustCreateOrUpdateKubeConfigSecretFromTokenSecret(
 	cli client.Client,
 	cfg *rest.Config,
 	consumerName string,
-	clusterProfile clusterinventoryv1alpha1.ClusterProfile,
+	clusterProfile clusterinventoryv1alpha2.ClusterProfile,
 	token string,
 ) {
 	kubeconfigStr := fmt.Sprintf(`apiVersion: v1

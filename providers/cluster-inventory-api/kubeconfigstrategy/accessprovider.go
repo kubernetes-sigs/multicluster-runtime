@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	"sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 
 	"k8s.io/client-go/rest"
@@ -20,11 +20,6 @@ var _ Interface = &accessProviderStrategy{}
 type AccessProviderOption struct {
 	Provider *access.Config
 }
-
-// CredentialsProviderOption specifies the deprecated credentials provider option.
-//
-// Deprecated: Use AccessProviderOption instead.
-type CredentialsProviderOption = AccessProviderOption
 
 type accessProviderStrategy struct {
 	provider *access.Config
@@ -46,6 +41,6 @@ func (c *accessProviderStrategy) CustomWatches() []CustomWatch {
 }
 
 // GetKubeConfig implements Interface.
-func (c *accessProviderStrategy) GetKubeConfig(ctx context.Context, cli client.Client, clp *v1alpha1.ClusterProfile) (*rest.Config, error) {
+func (c *accessProviderStrategy) GetKubeConfig(ctx context.Context, cli client.Client, clp *v1alpha2.ClusterProfile) (*rest.Config, error) {
 	return c.provider.BuildConfigFromCP(clp)
 }

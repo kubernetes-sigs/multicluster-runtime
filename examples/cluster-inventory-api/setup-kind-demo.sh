@@ -141,7 +141,7 @@ kubectl --context "kind-${HUB_CLUSTER}" create secret generic "${PROFILE_NAME}" 
 
 echo "--- Creating ClusterProfile"
 kubectl --context "kind-${HUB_CLUSTER}" apply -f - <<EOF
-apiVersion: multicluster.x-k8s.io/v1alpha1
+apiVersion: multicluster.x-k8s.io/v1alpha2
 kind: ClusterProfile
 metadata:
   name: ${PROFILE_NAME}

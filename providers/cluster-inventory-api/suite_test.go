@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	clusterinventoryv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	clusterinventoryv1alpha2 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha2"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -44,7 +44,7 @@ func TestBuilder(t *testing.T) {
 var clusterProfileCRDPath string
 
 var _ = BeforeSuite(func() {
-	runtime.Must(clusterinventoryv1alpha1.AddToScheme(scheme.Scheme))
+	runtime.Must(clusterinventoryv1alpha2.AddToScheme(scheme.Scheme))
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 

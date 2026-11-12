@@ -28,35 +28,25 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = DescribeTable("New requires a provider",
-	func(option Option) {
-		strategy, err := New(context.Background(), option)
+var _ = Describe("New", func() {
+	It("requires an access provider", func() {
+		strategy, err := New(context.Background(), Option{
+			AccessProvider: &AccessProviderOption{},
+		})
 
 		Expect(err).To(MatchError(ContainSubstring("access provider must be set for AccessProvider strategy")))
 		Expect(strategy).To(BeNil())
-	},
-	Entry("AccessProvider", Option{
-		AccessProvider: &AccessProviderOption{},
-	}),
-	Entry("CredentialsProvider", Option{
-		CredentialsProvider: &CredentialsProviderOption{},
-	}),
-)
+	})
 
-var _ = DescribeTable("New creates a strategy when a provider is configured",
-	func(option Option) {
-		strategy, err := New(context.Background(), option)
+	It("creates a strategy when an access provider is configured", func() {
+		strategy, err := New(context.Background(), Option{
+			AccessProvider: &AccessProviderOption{Provider: validAccessConfig()},
+		})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strategy).NotTo(BeNil())
-	},
-	Entry("AccessProvider", Option{
-		AccessProvider: &AccessProviderOption{Provider: validAccessConfig()},
-	}),
-	Entry("CredentialsProvider", Option{
-		CredentialsProvider: &CredentialsProviderOption{Provider: validAccessConfig()},
-	}),
-)
+	})
+})
 
 func validAccessConfig() *access.Config {
 	return access.New([]access.Provider{{
