@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.23"
+  go: "1.26"
   allow-parallel-runners: true
 linters:
   default: none
@@ -92,7 +92,7 @@ linters:
     rules:
       - linters:
           - gosec
-        text: 'G108: Profiling endpoint is automatically exposed on /debug/pprof'
+        text: "G108: Profiling endpoint is automatically exposed on /debug/pprof"
       - linters:
           - revive
         text: 'exported: exported method .*\.(Reconcile|SetupWithManager|SetupWebhookWithManager) should have comment or be unexported'
@@ -101,7 +101,7 @@ linters:
         text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
       - linters:
           - staticcheck
-        text: 'SA1019: .*The component config package has been deprecated and will be removed in a future release.'
+        text: "SA1019: .*The component config package has been deprecated and will be removed in a future release."
       - linters:
           - staticcheck
         text: 'QF1008: could remove embedded field ".*" from selector'
@@ -132,19 +132,19 @@ linters:
       - path: _test\.go
         text: cyclomatic complexity
       - path: _test\.go
-        text: 'G107: Potential HTTP request made with variable url'
+        text: "G107: Potential HTTP request made with variable url"
       # Append should be able to assign to a different var/slice.
       - linters:
           - gocritic
-        text: 'appendAssign: append result not assigned to the same slice'
+        text: "appendAssign: append result not assigned to the same slice"
       - linters:
           - gocritic
-        text: 'singleCaseSwitch: should rewrite switch statement to if statement'
+        text: "singleCaseSwitch: should rewrite switch statement to if statement"
       # It considers all file access to a filename that comes from a variable problematic,
       # which is naiv at best.
       - linters:
           - gosec
-        text: 'G304: Potential file inclusion via variable'
+        text: "G304: Potential file inclusion via variable"
       - linters:
           - dupl
         path: _test\.go
@@ -158,7 +158,7 @@ linters:
       - path: (.+)\.go$
         text: (G204|G104|G307)
       - path: (.+)\.go$
-        text: 'ST1000: at least one file in a package should have a package comment'
+        text: "ST1000: at least one file in a package should have a package comment"
     paths:
       - zz_generated.*\.go$
       - .*conversion.*\.go$
