@@ -210,9 +210,13 @@ func startWithinContext[request mcreconcile.ClusterAware[request]](ctx context.C
 		default:
 		}
 		ctx, cancel := context.WithCancel(ctx)
+		// Return when the engagement ends too, or each engagement leaves this goroutine behind until the controller stops.
 		go func() {
-			<-ctlCtx.Done()
-			cancel()
+			select {
+			case <-ctlCtx.Done():
+				cancel()
+			case <-ctx.Done():
+			}
 		}()
 		return src.Start(ctx, w)
 	})
