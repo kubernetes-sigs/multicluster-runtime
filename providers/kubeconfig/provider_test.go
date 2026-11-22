@@ -378,6 +378,21 @@ var _ = Describe("Provider Namespace", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	// The label is how a secret opts in, so removing it has to remove the cluster, as deleting the secret does.
+	It("removes a cluster from the provider when the kubeconfig secret loses its label", func() {
+		Eventually(provider.ListClusters, "10s").Should(ContainElement(mcluster.ClusterName("jungle")))
+
+		jungleSecret := &corev1.Secret{}
+		err := localCli.Get(ctx, client.ObjectKey{Name: "jungle", Namespace: kubeconfigSecretNamespace}, jungleSecret)
+		Expect(err).NotTo(HaveOccurred())
+
+		delete(jungleSecret.Labels, kubeconfigSecretLabel)
+		err = localCli.Update(ctx, jungleSecret)
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(provider.ListClusters, "10s").ShouldNot(ContainElement(mcluster.ClusterName("jungle")))
+	})
+
 	AfterAll(func() {
 		By("Stopping the provider, cluster, manager, and controller", func() {
 			cancel()
