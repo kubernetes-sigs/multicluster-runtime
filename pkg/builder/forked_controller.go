@@ -520,7 +520,7 @@ func (blder *TypedBuilder[request]) doController(r reconcile.TypedReconciler[req
 		ctrlOptions.LogConstructor = func(in *request) logr.Logger {
 			log := log
 
-			if req, ok := any(in).(*reconcile.Request); ok && req != nil {
+			if req, ok := any(in).(*mcreconcile.Request); ok && req != nil {
 				if hasGVK {
 					log = log.WithValues(gvk.Kind, klog.KRef(req.Namespace, req.Name))
 				}

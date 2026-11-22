@@ -21,7 +21,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/go-logr/logr"
+
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
@@ -88,6 +91,23 @@ func NewUnmanaged(name string, mgr mcmanager.Manager, options Options) (Controll
 func NewTypedUnmanaged[request mcreconcile.ClusterAware[request]](name string, mgr mcmanager.Manager, options controller.TypedOptions[request]) (TypedController[request], error) {
 	// Default to the managers configured options, like controller-runtime's [controller.NewTyped].
 	options.DefaultFromConfig(mgr.GetControllerOptions())
+	// controller-runtime's default LogConstructor only adds the object of a
+	// reconcile.Request, so set the same default for an mcreconcile.Request.
+	if options.LogConstructor == nil {
+		log := options.Logger.WithValues(
+			"controller", name,
+		)
+		options.LogConstructor = func(in *request) logr.Logger {
+			log := log
+			if req, ok := any(in).(*mcreconcile.Request); ok && req != nil {
+				log = log.WithValues(
+					"object", klog.KRef(req.Namespace, req.Name),
+					"namespace", req.Namespace, "name", req.Name,
+				)
+			}
+			return log
+		}
+	}
 	c, err := controller.NewTypedUnmanaged[request](name, options)
 	if err != nil {
 		return nil, err
