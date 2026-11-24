@@ -93,6 +93,10 @@ type Provider interface {
 // Providers implementing this interface are automatically started by the multicluster manager
 // when the manager starts. You should NOT manually call Start() on providers that implement
 // this interface - the manager will handle this automatically.
+//
+// With leader election, the manager runs the provider only on the leader. A provider that
+// also implements NeedLeaderElection() bool (manager.LeaderElectionRunnable in
+// controller-runtime) and returns false runs on every replica.
 type ProviderRunnable interface {
 	// Start runs the provider. Implementation of this method should block.
 	// If you need to pass in manager, it is recommended to implement SetupWithManager(mgr mcmanager.Manager) error method on individual providers.

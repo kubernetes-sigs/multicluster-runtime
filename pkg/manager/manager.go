@@ -248,17 +248,40 @@ func (m *mcManager) GetFieldIndexer() client.FieldIndexer {
 
 // Start starts the manager. If the configured provider is also a ProviderRunnable,
 // it will be added as last runnable before starting the manager.
+// If the provider also implements manager.LeaderElectionRunnable, its
+// NeedLeaderElection decides if it runs only on the leader or on every replica.
 func (m *mcManager) Start(ctx context.Context) error {
 	// if provider is a ProviderRunnable, add it as last runnable before starting.
 	if runnable, ok := m.GetProvider().(multicluster.ProviderRunnable); ok {
-		if err := m.Manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			return runnable.Start(ctx, m)
-		})); err != nil {
+		if err := m.Manager.Add(&providerRunnable{provider: runnable, aware: m}); err != nil {
 			return err
 		}
 	}
 
 	return m.Manager.Start(ctx)
+}
+
+// providerRunnable runs a ProviderRunnable as a manager.Runnable, and keeps
+// the provider's NeedLeaderElection. A provider that does not implement
+// manager.LeaderElectionRunnable needs leader election, as before.
+type providerRunnable struct {
+	provider multicluster.ProviderRunnable
+	aware    multicluster.Aware
+}
+
+var _ manager.LeaderElectionRunnable = &providerRunnable{}
+
+// Start runs the provider with the multicluster manager as its Aware.
+func (r *providerRunnable) Start(ctx context.Context) error {
+	return r.provider.Start(ctx, r.aware)
+}
+
+// NeedLeaderElection returns the provider's answer, or true if it has none.
+func (r *providerRunnable) NeedLeaderElection() bool {
+	if le, ok := r.provider.(manager.LeaderElectionRunnable); ok {
+		return le.NeedLeaderElection()
+	}
+	return true
 }
 
 var _ manager.Manager = &scopedManager{}
