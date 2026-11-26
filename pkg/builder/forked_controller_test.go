@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 
 	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -362,6 +363,35 @@ var _ = Describe("application", func() {
 			instance, err := builder.Build(noop)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(instance).NotTo(BeNil())
+		})
+
+		// The default logger is what reconcilers get from log.FromContext, so without the request's object every
+		// reconcile log line misses which object it is about.
+		It("should add the request's object to the default logger", func() {
+			var logged string
+			logger := funcr.New(func(_, args string) { logged = args }, funcr.Options{})
+
+			By("creating a controller manager")
+			m, err := mcmanager.New(cfg, nil, mcmanager.Options{Logger: logger})
+			Expect(err).NotTo(HaveOccurred())
+
+			var logConstructor func(*mcreconcile.Request) logr.Logger
+			builder := ControllerManagedBy(m).
+				For(&appsv1.ReplicaSet{}).
+				Named("replicaset-log")
+			builder.newController = func(name string, mgr mcmanager.Manager, options mccontroller.Options) (mccontroller.Controller, error) {
+				logConstructor = options.LogConstructor
+				return mccontroller.New(name, mgr, options)
+			}
+			_, err = builder.Build(noop)
+			Expect(err).NotTo(HaveOccurred())
+
+			logConstructor(&mcreconcile.Request{
+				Request:     reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "default", Name: "rs"}},
+				ClusterName: "cluster-a",
+			}).Info("reconciling")
+			Expect(logged).To(Equal(`"level"=0 "msg"="reconciling" "controller"="replicaset-log" "controllerGroup"="apps" "controllerKind"="ReplicaSet" ` +
+				`"ReplicaSet"={"name"="rs" "namespace"="default"} "namespace"="default" "name"="rs"`))
 		})
 
 		It("should not allow multiple reconcilers during creation of controller", func() {
