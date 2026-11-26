@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -168,13 +169,16 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 
 	// Setup the controller to watch for secrets containing kubeconfig data
 	err := ctrl.NewControllerManagedBy(localMgr).
-		For(&corev1.Secret{}, builder.WithPredicates(predicate.NewPredicateFuncs(
-			// Only watch for secrets in the configured namespace and with the configured label
-			func(obj client.Object) bool {
-				return obj.GetNamespace() == p.opts.Namespace &&
-					obj.GetLabels()[p.opts.KubeconfigSecretLabel] == "true"
+		For(&corev1.Secret{}, builder.WithPredicates(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool { return p.isKubeconfigSecret(e.Object) },
+			// An update that removes the label has to reach Reconcile as
+			// well, so that it removes the cluster.
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return p.isKubeconfigSecret(e.ObjectOld) || p.isKubeconfigSecret(e.ObjectNew)
 			},
-		))).
+			DeleteFunc:  func(e event.DeleteEvent) bool { return p.isKubeconfigSecret(e.Object) },
+			GenericFunc: func(e event.GenericEvent) bool { return p.isKubeconfigSecret(e.Object) },
+		})).
 		Named(p.opts.ControllerName).
 		Complete(p)
 	if err != nil {
@@ -184,6 +188,13 @@ func (p *Provider) SetupWithManager(ctx context.Context, mgr mcmanager.Manager) 
 	return nil
 }
 
+// isKubeconfigSecret reports whether obj is in the configured namespace and
+// has the configured label, which is what makes a secret a cluster.
+func (p *Provider) isKubeconfigSecret(obj client.Object) bool {
+	return obj.GetNamespace() == p.opts.Namespace &&
+		obj.GetLabels()[p.opts.KubeconfigSecretLabel] == "true"
+}
+
 // Reconcile is the main controller function that reconciles secrets containing kubeconfig data
 func (p *Provider) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Handle secret retrieval and basic validation
@@ -191,8 +202,8 @@ func (p *Provider) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if secret == nil {
-		// Secret not found, remove cluster if it exists
+	if secret == nil || !p.isKubeconfigSecret(secret) {
+		// Secret not found or no longer labeled, remove cluster if it exists
 		p.removeCluster(multicluster.ClusterName(req.Name))
 		return ctrl.Result{}, nil
 	}
