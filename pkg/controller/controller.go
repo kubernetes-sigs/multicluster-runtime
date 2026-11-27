@@ -200,9 +200,13 @@ func (c *mcController[request]) MultiClusterWatch(src mcsource.TypedSource[clien
 func startWithinContext[request mcreconcile.ClusterAware[request]](ctx context.Context, src source.TypedSource[request]) source.TypedSource[request] {
 	return source.TypedFunc[request](func(ctlCtx context.Context, w workqueue.TypedRateLimitingInterface[request]) error {
 		ctx, cancel := context.WithCancel(ctx)
+		// Return when the engagement ends too, or each engagement leaves this goroutine behind until the controller stops.
 		go func() {
-			<-ctlCtx.Done()
-			cancel()
+			select {
+			case <-ctlCtx.Done():
+				cancel()
+			case <-ctx.Done():
+			}
 		}()
 		return src.Start(ctx, w)
 	})
